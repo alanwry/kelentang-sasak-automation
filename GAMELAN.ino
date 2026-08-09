@@ -1,8 +1,6 @@
 #include "config.h"
 #include "pins.h"
-
 #include "button.h"
-// #include "buzzer.h" // Hapus
 #include "display.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
@@ -22,7 +20,6 @@
 extern Adafruit_PCF8574 pcf;
 extern void triggerBuzzer(uint16_t duration);
 
-// Queue untuk event tombol
 QueueHandle_t buttonQueue;
 SemaphoreHandle_t wifiSemaphore;
 
@@ -33,24 +30,21 @@ void midiTask(void *pvParameters) {
       player.handleEvent(evt);
     }
     player.update();
-    vTaskDelay(1 / portTICK_PERIOD_MS); // Yield to other tasks
+    vTaskDelay(1 / portTICK_PERIOD_MS);
   }
 }
 
 void systemTask(void *pvParameters) {
   for (;;) {
-    // buzzer.update(); // Hapus
     button.update();
 
-    // Logic for WiFi toggle (AP/STA) based on button hold
     uint32_t holdTime = button.getStopHoldDuration();
     static bool wifiActionTaken = false;
     if (holdTime > 0) {
       if (!wifiActionTaken) {
-        if (holdTime >= WIFI_DISABLE_MS) { // 5s
+        if (holdTime >= WIFI_DISABLE_MS) { // 5s hold to switch to STA
           if (WiFi.getMode() == WIFI_AP) {
             if (xSemaphoreTake(wifiSemaphore, pdMS_TO_TICKS(100))) {
-              // 2x beep keluar AP
               triggerBuzzer(150);
               vTaskDelay(200 / portTICK_PERIOD_MS);
               triggerBuzzer(150);
@@ -62,10 +56,9 @@ void systemTask(void *pvParameters) {
             }
             wifiActionTaken = true;
           }
-        } else if (holdTime >= WIFI_ENABLE_MS) { // 2s
+        } else if (holdTime >= WIFI_ENABLE_MS) { // 2s hold to switch to AP
           if (WiFi.getMode() != WIFI_AP) {
             if (xSemaphoreTake(wifiSemaphore, pdMS_TO_TICKS(100))) {
-              // 2x beep masuk AP
               triggerBuzzer(150);
               vTaskDelay(200 / portTICK_PERIOD_MS);
               triggerBuzzer(150);
@@ -107,9 +100,7 @@ void setup() {
 
   Wire.begin(LCD_SDA, LCD_SCL);
   button.begin();
-  // buzzer.begin(PIN_BUZZER); // Hapus
 
-  // Set pin buzzer langsung
   pcf.pinMode(PIN_BUZZER, OUTPUT);
   pcf.digitalWrite(PIN_BUZZER, LOW);
 
@@ -126,9 +117,8 @@ void setup() {
   solenoid.begin();
   sdcard.scan();
   player.begin();
-  display.ready();
 
-  triggerBuzzer(400); // Startup beep
+  triggerBuzzer(400);
 
   buttonQueue = xQueueCreate(10, sizeof(ButtonID));
 
@@ -137,5 +127,5 @@ void setup() {
 }
 
 void loop() {
-  vTaskDelete(NULL); // Hapus loop utama
+  vTaskDelete(NULL);
 }

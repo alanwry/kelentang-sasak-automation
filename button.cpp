@@ -6,18 +6,17 @@
 ButtonManager button;
 Adafruit_PCF8574 pcf;
 
-// Mapping array: P0=PREV, P1=PLAY_PAUSE, P2=NEXT, P3=MODE
 static const uint8_t buttonPin[4] = { PIN_PREV, PIN_PLAY_PAUSE, PIN_NEXT, PIN_MODE };
 
 void ButtonManager::begin() {
-  // Initializing PCF8574 silently
+  // CRITICAL: Ensure PCF8574 I2C communication is established during startup
   if (!pcf.begin(PCF8574_ADDRESS, &Wire)) {
-    Serial.println("[SYSTEM]: Error: PCF8574 gagal terhubung!");
+    Serial.println("[SYSTEM]: Error: PCF8574 initialization failed!");
     initialized = false;
     return;
   }
   
-  Serial.println("[SYSTEM]: PCF8574 terhubung.");
+  Serial.println("[SYSTEM]: PCF8574 initialized.");
   initialized = true;
 
   for (int i = 0; i < 4; i++) {
@@ -37,7 +36,6 @@ uint32_t ButtonManager::getStopHoldDuration() {
   return 0;
 }
 
-// Helper untuk direct buzzer control di PCF
 void triggerBuzzer(uint16_t duration) {
   pcf.digitalWrite(PIN_BUZZER, HIGH);
   vTaskDelay(duration / portTICK_PERIOD_MS);
@@ -60,23 +58,23 @@ void ButtonManager::update() {
 
         if (state == LOW) {
           pressedState[i] = true;
-          triggerBuzzer(50); // Panggil beep untuk semua tombol
+          triggerBuzzer(50);
 
           switch (i) {
             case 0:
               event = BTN_PREV;
-              Serial.println("[BUTTON]: PREVIOUS ditekan");
+              Serial.println("[BUTTON]: PREVIOUS pressed");
               break;
             case 1:
               event = BTN_START;
-              Serial.println("[BUTTON]: PLAY/PAUSE ditekan");
+              Serial.println("[BUTTON]: PLAY/PAUSE pressed");
               break;
             case 2:
               event = BTN_NEXT;
-              Serial.println("[BUTTON]: NEXT ditekan");
+              Serial.println("[BUTTON]: NEXT pressed");
               break;
             case 3:
-              // For MODE button, handle long press for AP mode entrance
+              // ARCHITECTURAL: Hold duration on MODE button triggers WiFi AP/STA toggle
               stopHeld = true;
               stopPressStart = now;
               Serial.printf("[BUTTON]: MODE hold started at %lu\n", stopPressStart);

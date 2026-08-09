@@ -23,7 +23,7 @@ void LedController::begin() {
 
 void LedController::update() {
   if (!button.isInitialized()) {
-    // If PCF8574 not initialized, we cannot control LEDs. System-wide error.
+    // CRITICAL: PCF8574 not initialized. LED control unavailable.
     return;
   }
 
@@ -32,15 +32,12 @@ void LedController::update() {
   uint32_t now = millis();
   
   if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
-    // AP Mode: Fast blink
     if (now - lastBlink >= 200) { lastBlink = now; blinkState = !blinkState; }
     pcf.digitalWrite(PIN_LED_NET, blinkState ? HIGH : LOW);
   } else if (WiFi.getMode() == WIFI_STA) {
     if (WiFi.status() == WL_CONNECTED) {
-      // STA Connected: ON constant
       pcf.digitalWrite(PIN_LED_NET, HIGH);
     } else {
-      // STA Not Connected: Slow blink
       if (now - lastBlink >= 1000) { lastBlink = now; blinkState = !blinkState; }
       pcf.digitalWrite(PIN_LED_NET, blinkState ? HIGH : LOW);
     }
@@ -48,7 +45,7 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_NET, LOW);
   }
 
-  // P6 (Run): ON constant when Pause; Blinking when Play.
+  // RUN LED: ON constant when Paused, blinking when Playing
   if (player.isPlaying()) {
     static uint32_t lastPlayBlink = 0;
     static bool playBlinkState = false;
@@ -64,8 +61,7 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_RUN, LOW);
   }
 
-  // P7 (Err): ON if there is any system error
-  // Errors: SD Card not detected/SPI failed, or Display failed
+  // ERR LED: Indicates critical system failures (SD card, Display, etc.)
   bool sdError = !sdcard.isDetected();
   bool displayError = !display.isInitialized();
   

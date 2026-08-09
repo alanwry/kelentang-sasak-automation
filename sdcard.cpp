@@ -7,7 +7,7 @@ SDCardManager sdcard;
 static bool sdInserted = true;
 
 bool SDCardManager::begin() {
-  // 1. Cek Mutex: Buat HANYA jika belum ada
+  // 1. Check Mutex: Create ONLY if not exists
   if (!mutex) {
     mutex = xSemaphoreCreateMutex();
     if (!mutex)
@@ -18,15 +18,15 @@ bool SDCardManager::begin() {
   sdInserted = (digitalRead(PIN_SD_DET) == LOW);
 
   if (!sdInserted) {
-    Serial.println("[SYSTEM]: Error: Kartu SD tidak terdeteksi");
+    Serial.println("[SYSTEM]: Error: SD card not detected");
     detected = false;
     return false;
   }
 
-  // 2. Pastikan SD di-end dulu (untuk membersihkan state lama)
+  // 2. Ensure SD is ended first (to clear old state)
   SD.end();
 
-  // 3. Inisialisasi SPI kembali
+  // 3. Re-initialize SPI
   SPI.begin(SD_SCK, SD_MISO, SD_MOSI, PIN_SD_CS);
 
   bool ok = false;
@@ -38,10 +38,10 @@ bool SDCardManager::begin() {
   }
 
   if (!ok) {
-    Serial.println("[SYSTEM]: Error: Modul SD card gagal terhubung (SPI)");
+    Serial.println("[SYSTEM]: Error: SD card module failed to connect (SPI)");
     detected = false;
   } else {
-    Serial.println("[SYSTEM]: Modul SD card terhubung (SPI)");
+    Serial.println("[SYSTEM]: SD card module connected (SPI)");
     detected = true;
   }
   return ok;
@@ -53,13 +53,13 @@ void SDCardManager::update() {
     sdInserted = currentDetected;
     if (sdInserted) {
       if (sdcard.begin()) {
-        Serial.println("[SYSTEM]: Kartu SD terbaca (pindet)");
+        Serial.println("[SYSTEM]: SD card detected (pin)");
         detected = true;
       } else {
         detected = false;
       }
     } else {
-      Serial.println("[SYSTEM]: Kartu SD dilepas (pindet)");
+      Serial.println("[SYSTEM]: SD card removed (pin)");
       player.stop();
       detected = false;
     }
@@ -69,7 +69,6 @@ void SDCardManager::update() {
 bool SDCardManager::isDetected() {
   return detected;
 }
-//...
 
 void SDCardManager::scan() {
   if (xSemaphoreTake(mutex, portMAX_DELAY)) {
@@ -166,7 +165,7 @@ File SDCardManager::openFile(const char *path, const char *mode) {
   if (xSemaphoreTake(mutex, portMAX_DELAY)) {
     file = SD.open(path, mode);
     if (file && strcmp(mode, FILE_WRITE) == 0)
-      Serial.printf("[SDCARD]: File diunggah: %s\n", path);
+      Serial.printf("[SDCARD]: File uploaded: %s\n", path);
     xSemaphoreGive(mutex);
   }
   return file;
@@ -177,9 +176,9 @@ bool SDCardManager::deleteFile(const char *path) {
   if (xSemaphoreTake(mutex, portMAX_DELAY)) {
     ok = SD.remove(path);
     if (ok)
-      Serial.printf("[SDCARD]: File dihapus: %s\n", path);
+      Serial.printf("[SDCARD]: File deleted: %s\n", path);
     else
-      Serial.printf("[SDCARD]: Error: Gagal menghapus: %s\n", path);
+      Serial.printf("[SDCARD]: Error: Failed to delete: %s\n", path);
     xSemaphoreGive(mutex);
   }
   return ok;

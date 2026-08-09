@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define FW_VERSION "2.5.0"
+#define FW_VERSION "3.0.0"
 
 #define MAX_SOLENOID 24
 
@@ -18,7 +18,7 @@
 #define WIFI_DISABLE_MS 5000
 
 #define WIFI_SSID "ESP32 PORTAL"
-#define WIFI_PASSWORD "esp32-portal"
+#define WIFI_PASSWORD ""
 
 #define MAX_FILENAME 128
 

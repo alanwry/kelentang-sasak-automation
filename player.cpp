@@ -25,14 +25,13 @@ void Player::begin() {
   elapsedUS = 0;
   eventQueue.clear();
 
-  Serial.printf("[PLAYER]: Mode inisialisasi: %s\n", autoMode ? "OTOMATIS (LOOP)" : "MANUAL");
-  Serial.printf("[PLAYER]: Solenoid Time inisialisasi: %d ms\n", solenoidTime);
+  Serial.printf("[PLAYER]: Init mode: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
+  Serial.printf("[PLAYER]: Solenoid Time init: %d ms\n", solenoidTime);
 
   if (sdcard.getCount() > 0) {
     load();
   } else {
-    display.showSong("NO FILE");
-    display.showStatus("NO MIDI");
+    display.show("NO FILE", "NO MIDI");
   }
 }
 
@@ -45,7 +44,7 @@ void Player::setSolenoidTime(uint16_t time) {
   prefs.begin("gamelan", false);
   prefs.putUShort("solenoidTime", time);
   prefs.end();
-  Serial.printf("[PLAYER]: Solenoid Time disimpan: %d ms\n", solenoidTime);
+  Serial.printf("[PLAYER]: Solenoid Time saved: %d ms\n", solenoidTime);
 }
 
 bool Player::load() {
@@ -58,13 +57,13 @@ bool Player::load() {
   File file = sdcard.openCurrent();
   if (!file) {
     loaded = false;
-    display.showStatus("LOAD FAIL");
+    display.show("NO FILE", "LOAD FAIL");
     return false;
   }
 
   if (!midi.open(file)) {
     loaded = false;
-    display.showStatus("LOAD FAIL");
+    display.show("NO FILE", "LOAD FAIL");
     return false;
   }
 
@@ -74,11 +73,10 @@ bool Player::load() {
   loaded = ok;
 
   if (ok) {
-    display.showSong(sdcard.getCurrentFile());
-    display.showStatus("LOADED");
-    Serial.printf("[PLAYER]: File dimuat: %s\n", sdcard.getCurrentFile());
+    display.show(sdcard.getCurrentFile(), "LOADED");
+    Serial.printf("[PLAYER]: File loaded: %s\n", sdcard.getCurrentFile());
   } else {
-    display.showStatus("LOAD FAIL");
+    display.show("NO FILE", "LOAD FAIL");
   }
 
   return ok;
@@ -86,26 +84,25 @@ bool Player::load() {
 
 void Player::play() {
   if (sdcard.getCount() == 0) {
-    display.showStatus("NO MIDI");
+    display.show("NO FILE", "NO MIDI");
     return;
   }
   if (!loaded && !load()) return;
 
-  Serial.printf("[PLAYER]: %s %s\n", paused ? "Melanjutkan" : "Mulai memainkan", sdcard.getCurrentFile());
+  Serial.printf("[PLAYER]: %s %s\n", paused ? "Resuming" : "Starting", sdcard.getCurrentFile());
 
   playing = true;
   if (paused) {
-    // Resume: sesuaikan startUS agar seolah-olah musik berjalan dari posisi terakhir
+    // Resume: adjust startUS to resume from last position
     startUS = esp_timer_get_time() - elapsedUS;
     paused = false;
   } else {
-    // Restart/Fresh start
     elapsedUS = 0;
     startUS = esp_timer_get_time();
     paused = false;
   }
 
-  display.showStatus("PLAYING");
+  display.show(sdcard.getCurrentFile(), "PLAYING");
 }
 
 void Player::stop() {
@@ -114,23 +111,23 @@ void Player::stop() {
   playing = false;
   paused = false;
   loaded = false;
-  elapsedUS = 0;  // Reset posisi
+  elapsedUS = 0;
   solenoid.allOff();
   eventQueue.clear();
-  display.showStatus("STOPPED");
-  Serial.println("[PLAYER]: Berhenti memainkan");
+  display.show(sdcard.getCurrentFile(), "STOPPED");
+  Serial.println("[PLAYER]: Stopped");
 }
 
 void Player::pause() {
   if (!playing) return;
 
-  // Simpan posisi saat ini
+  // Save current position
   elapsedUS += (esp_timer_get_time() - startUS);
 
   playing = false;
   paused = true;
   solenoid.allOff();
-  display.showStatus("PAUSED");
+  display.show(sdcard.getCurrentFile(), "PAUSED");
 }
 
 bool Player::isPlaying() {
@@ -160,8 +157,8 @@ void Player::toggleMode() {
   prefs.putBool("autoMode", autoMode);
   prefs.end();
 
-  Serial.printf("[PLAYER]: Mode diubah ke: %s\n", autoMode ? "OTOMATIS (LOOP)" : "MANUAL");
-  display.showStatus(autoMode ? "AUTO MODE" : "MANUAL MODE");
+  Serial.printf("[PLAYER]: Mode set to: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
+  display.show(sdcard.getCurrentFile(), autoMode ? "AUTO MODE" : "MANUAL MODE");
 }
 
 bool Player::isAutoMode() {
@@ -195,7 +192,7 @@ void Player::update() {
     return;
   }
 
-  // Hitung waktu total berlalu (waktu yang disimpan + waktu berjalan saat ini)
+  // Calculate elapsed time (stored elapsed + running time)
   uint64_t elapsed = elapsedUS + (esp_timer_get_time() - startUS);
   MidiEvent evtData;
 
@@ -209,14 +206,15 @@ void Player::update() {
 
   if (eventQueue.empty()) {
     if (autoMode) {
-      Serial.println("[PLAYER]: Loop: Jeda 2 detik sebelum berikutnya");
-      display.showStatus("NEXT IN 2S");
+      Serial.println("[PLAYER]: Loop: 2s delay");
+      display.show(sdcard.getCurrentFile(), "NEXT IN 2S");
       vTaskDelay(2000 / portTICK_PERIOD_MS);
       nextFile();
       play();
     } else {
       stop();
-      display.showStatus("DONE");
+      display.show(sdcard.getCurrentFile(), "DONE");
     }
   }
 }
+

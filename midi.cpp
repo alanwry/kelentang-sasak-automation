@@ -5,9 +5,9 @@
 MidiFile midi;
 
 namespace {
-// ===== HELPER FUNCTIONS untuk membaca MIDI file =====
+// Helper functions for reading MIDI files
 
-// Read 16-bit big-endian dengan validasi
+// Read 16-bit big-endian with validation
 bool readBe16Safe(File &file, uint16_t &result, uint32_t &bytesRead) {
   if (file.available() < 2)
     return false;
@@ -18,7 +18,7 @@ bool readBe16Safe(File &file, uint16_t &result, uint32_t &bytesRead) {
   return true;
 }
 
-// Read 32-bit big-endian dengan validasi
+// Read 32-bit big-endian with validation
 bool readBe32Safe(File &file, uint32_t &result, uint32_t &bytesRead) {
   if (file.available() < 4)
     return false;
@@ -31,7 +31,7 @@ bool readBe32Safe(File &file, uint32_t &result, uint32_t &bytesRead) {
   return true;
 }
 
-// Variable-length quantity decoder (MIDI standard)
+// Variable-length quantity decoder
 bool readVarLengthSafe(File &file, uint32_t &value, uint32_t &bytesRead) {
   value = 0;
   uint8_t b;
@@ -44,7 +44,7 @@ bool readVarLengthSafe(File &file, uint32_t &value, uint32_t &bytesRead) {
     count++;
     value = (value << 7) | (b & 0x7F);
     if (count > 4)
-      return false;  // Invalid: too many bytes
+      return false;
   } while (b & 0x80);
   return true;
 }
@@ -85,7 +85,7 @@ bool MidiFile::eof() {
   return !midiFile || midiFile.available() == 0;
 }
 
-// ===== MAIN MIDI PARSER =====
+// MAIN MIDI PARSER
 bool MidiFile::parse() {
   if (!midiFile) {
     Serial.println("[MIDI] parse failed: file not valid");
@@ -152,13 +152,12 @@ bool MidiFile::parse() {
     return false;
   }
 
-  // Validate & normalize division (PPQ - pulses per quarter note)
   if ((division & 0x8000) != 0)
     division = 480;
   else if (division == 0)
     division = 480;
 
-  // Skip extra header bytes jika ada
+  // Skip extra header bytes if present
   if (headerLength > 6) {
     uint32_t skipLen = headerLength - 6;
     if (!skipSafe(midiFile, skipLen, bytesRead)) {
@@ -168,7 +167,7 @@ bool MidiFile::parse() {
   }
 
   // STEP 3: Process tracks
-  uint32_t tempoUsPerQuarter = 500000;  // Default tempo: 120 BPM
+  uint32_t tempoUsPerQuarter = 500000;
   uint64_t absoluteTicks = 0;
 
   for (uint16_t trackIndex = 0; trackIndex < trackCount; trackIndex++) {
@@ -194,9 +193,8 @@ bool MidiFile::parse() {
     uint32_t trackBytesRead = 0;
     uint8_t runningStatus = 0;
 
-    // Process all events dalam track
+    // Process all events in track
     while (midiFile.position() < trackEnd && trackBytesRead < trackLength) {
-      // Read delta time (waktu sejak event sebelumnya)
       uint32_t delta = 0;
       if (!readVarLengthSafe(midiFile, delta, trackBytesRead)) {
         lastError = ERR_PARSE_ERROR;
@@ -204,7 +202,6 @@ bool MidiFile::parse() {
       }
       absoluteTicks += delta;
 
-      // Read status byte
       if (!midiFile.available()) {
         lastError = ERR_FILE_TRUNCATED;
         break;
@@ -218,7 +215,7 @@ bool MidiFile::parse() {
         trackBytesRead++;
         runningStatus = statusByte;
       } else {
-        statusByte = runningStatus;  // Use running status
+        statusByte = runningStatus;
       }
 
       if (statusByte == 0)
@@ -227,7 +224,7 @@ bool MidiFile::parse() {
       uint8_t statusNibble = statusByte >> 4;
       uint8_t data1, data2;
 
-      // STEP 4: Parse setiap MIDI event berdasarkan status byte
+      // STEP 4: Parse each MIDI event based on status byte
       switch (statusNibble) {
         case 0x8:  // Note Off
           if (midiFile.available() < 2) {
@@ -248,8 +245,7 @@ bool MidiFile::parse() {
           data2 = midiFile.read();
           trackBytesRead += 2;
 
-          if (data2 > 0) {  // velocity > 0 = note ON
-            // Map MIDI note ke solenoid output
+          if (data2 > 0) {
             Solenoid *items = solenoid.getItems();
             for (uint8_t i = 0; i < solenoid.getCount(); i++) {
               if (items[i].getMidiNote() == data1) {
@@ -257,11 +253,9 @@ bool MidiFile::parse() {
                 evt.timeUS = (absoluteTicks * tempoUsPerQuarter) / division;
                 evt.type = EVENT_NOTE_ON;
                 evt.note = data1;
-                // Store solenoid index in the event, not just note
                 evt.solenoidId = i;
                 eventQueue.push(evt);
                 eventCount++;
-                // Mapped to solenoid
                 break;
               }
             }
@@ -269,7 +263,6 @@ bool MidiFile::parse() {
           break;
 
         case 0xA:
-          // Polyphonic Pressure
           if (midiFile.available() < 2) {
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
@@ -338,7 +331,7 @@ bool MidiFile::parse() {
               goto track_done;
             }
 
-            if (metaType == 0x51 && metaLength >= 3) {  // Set Tempo (PENTING)
+            if (metaType == 0x51 && metaLength >= 3) {  // Set Tempo (IMPORTANT)
               if (midiFile.available() < 3) {
                 lastError = ERR_FILE_TRUNCATED;
                 goto track_done;
@@ -349,7 +342,6 @@ bool MidiFile::parse() {
               trackBytesRead += 3;
               tempoUsPerQuarter = ((uint32_t)t1 << 16) | ((uint32_t)t2 << 8) | t3;
 
-              // Validate tempo: 20-300 BPM
               if (tempoUsPerQuarter < 200000)
                 tempoUsPerQuarter = 200000;
               if (tempoUsPerQuarter > 3000000)
@@ -361,9 +353,8 @@ bool MidiFile::parse() {
                   goto track_done;
                 }
               }
-              break;  // End track processing
+              break;
             } else {
-              // Skip other meta events
               if (metaLength > 0) {
                 if (!skipSafe(midiFile, metaLength, trackBytesRead)) {
                   lastError = ERR_FILE_TRUNCATED;
@@ -398,7 +389,6 @@ bool MidiFile::parse() {
     }
 
 track_done:
-    // Skip ke track berikutnya
     uint32_t currentPos = midiFile.position();
     if (currentPos < trackEnd) {
       midiFile.seek(trackEnd);

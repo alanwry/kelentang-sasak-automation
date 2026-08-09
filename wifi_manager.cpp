@@ -19,17 +19,13 @@ void WiFiManager::update() {
   if (isConnecting) {
     if (WiFi.status() == WL_CONNECTED) {
       isConnecting = false;
-      char statusBuf[17];
-      snprintf(statusBuf, sizeof(statusBuf), "IP: %s", WiFi.localIP().toString().c_str());
-      display.showStatus(statusBuf);
       webServer.begin();
-      Serial.println("[SYSTEM]: STA berhasil terhubung");
+      Serial.println("[SYSTEM]: STA successfully connected");
     } else if (millis() - connectionStart > 15000) { // 15s timeout
       isConnecting = false;
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      display.showStatus("WIFI CONN FAIL");
-      Serial.println("[SYSTEM]: STA gagal terhubung");
+      Serial.println("[SYSTEM]: STA failed to connect");
     }
   }
 }
@@ -84,7 +80,7 @@ bool WiFiManager::isSTAEnabled() {
 void WiFiManager::stopAll() {
   Serial.println("[WIFI]: Cleaning up WiFi stack...");
   
-  // Amankan akses ke webserver
+  // Secure webserver access
   if (webServer.isActive()) {
       webServer.stop();
   }
@@ -93,24 +89,27 @@ void WiFiManager::stopAll() {
   WiFi.disconnect(true); 
   WiFi.softAPdisconnect(true);
   WiFi.mode(WIFI_OFF);
-  isConnecting = false; // Reset connecting state
+  isConnecting = false; 
 
   delay(200); 
   Serial.println("[WIFI]: WiFi stack cleaned.");
 }
 
 void WiFiManager::startAP() {
-  Serial.println("[SYSTEM]: Attempting to start AP Mode...");
+  WiFi.disconnect(true);
+  WiFi.softAPdisconnect(true);
+  
   WiFi.mode(WIFI_AP);
+  
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+
   WiFi.setTxPower(WIFI_POWER_19_5dBm);
   
-  if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 4)) {
-      Serial.println("[SYSTEM]: AP Mode started");
-      display.showStatus("AP: 192.168.4.1");
+  if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD)) {
       webServer.begin();
-  } else {
-      Serial.println("[SYSTEM]: AP Mode Failed to start");
-      display.showStatus("AP START FAIL");
   }
 }
 
@@ -123,6 +122,6 @@ void WiFiManager::startSTA() {
 
   isConnecting = true;
   connectionStart = millis();
-  display.showStatus("CONNECTING...");
 }
+
 

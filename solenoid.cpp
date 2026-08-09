@@ -4,8 +4,6 @@
 #include "esp_timer.h"
 #include "player.h"
 
-// ===== Solenoid Individual Implementation =====
-
 void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote) {
   pin = gpio;
   this->note = note;
@@ -47,8 +45,6 @@ uint8_t Solenoid::getMidiNote() {
   return midiNote;
 }
 
-// ===== SolenoidManager Implementation =====
-
 SolenoidManager solenoid;
 
 void SolenoidManager::begin() {
@@ -60,7 +56,7 @@ void SolenoidManager::begin() {
 
 void SolenoidManager::test(uint8_t pin) {
   uint32_t now = millis();
-  if (now - lastTestTime < 1000) return; // Debounce 1 detik
+  if (now - lastTestTime < 1000) return; // Debounce 1 second
   
   for (uint8_t i = 0; i < count; i++) {
     if (item[i].getPin() == pin) {
@@ -98,7 +94,7 @@ bool SolenoidManager::loadConfig() {
 bool SolenoidManager::saveConfig() {
   File file = SD.open("/solenoids.txt", FILE_WRITE);
   if (!file) {
-    Serial.println("[SOLENOID]: Error: Gagal menyimpan konfigurasi");
+    Serial.println("[SOLENOID]: Error: Failed to save config");
     return false;
   }
 
@@ -108,7 +104,7 @@ bool SolenoidManager::saveConfig() {
     file.print(item[i].getNote());
     file.print(",");
     file.println(item[i].getMidiNote());
-    Serial.printf("[SOLENOID]: Tersimpan - Pin: %d, Note: %s, MIDI: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote());
+    Serial.printf("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote());
   }
 
   file.flush();
@@ -158,3 +154,4 @@ uint8_t SolenoidManager::getCount() const {
 Solenoid* SolenoidManager::getItems() {
   return (Solenoid*)item;
 }
+

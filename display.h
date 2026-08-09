@@ -4,28 +4,17 @@
 #include <Arduino.h>
 #include <LiquidCrystal_I2C.h>
 
-#define SCROLL_INTERVAL 300
-
 class DisplayManager {
 public:
   void begin();
-  bool isInitialized(); // Tambahkan ini
+  bool isInitialized();
   void splash();
-  void ready();
-  void error(const char *msg);
-  void showSong(const char *song);
-  void showStatus(const char *status);
-  void showFileIndex(uint16_t current, uint16_t total);
+  void show(const char *song, const char *status);
   void update();
 private:
-  void scrollDisplay();
   char songName[17];
   char statusName[17];
-  uint16_t currentFile;
-  uint16_t totalFiles;
-  uint16_t scrollPos;
-  uint32_t lastScrollTime;
-  bool initialized = false; // Tambahkan ini
+  bool initialized = false;
 };
 
 extern DisplayManager display;

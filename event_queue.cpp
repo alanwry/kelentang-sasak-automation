@@ -32,7 +32,7 @@ void EventQueue::push(const MidiEvent &event) {
   count++;
   static bool logged = false;
   if (!logged) {
-    Serial.println("[QUEUE]: MIDI event masuk ke antrian");
+    Serial.println("[QUEUE]: MIDI event queued");
     logged = true;
   }
 }
@@ -43,7 +43,6 @@ void EventQueue::clear() {
   count = 0;
   static bool logged = false;
   if (logged) {
-    // Reset logging state when queue is cleared
     logged = false;
   }
 }

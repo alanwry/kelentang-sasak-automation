@@ -18,6 +18,9 @@
 
 extern void triggerBuzzer(uint16_t duration);
 
+// Forward declaration
+esp_err_t captive_handler(httpd_req_t *req);
+
 WebServerManager webServer;
 namespace {
 httpd_handle_t server = nullptr;
@@ -38,20 +41,28 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   .card { background: var(--card-bg); padding: 20px; border-radius: 16px; max-width: 600px; margin: 0 auto 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); border: 1px solid var(--border); }
   h2 { margin-top: 0; color: var(--accent); font-size: 1.25rem; letter-spacing: -0.025em; }
   .row { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
-  input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: white; font-size: 0.95rem; flex-grow: 1; transition: border-color 0.2s; }
+  input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: white; font-size: 0.95rem; flex-grow: 1; transition: border-color 0.2s; box-sizing: border-box; }
   input:focus { outline: none; border-color: var(--accent); }
   button { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.75rem; transition: opacity 0.2s; }
   button:hover { opacity: 0.9; }
   .primary { background: var(--accent); color: #0f172a; }
   .danger { background: var(--danger); color: white; }
-  table { width: 100%; border-collapse: separate; border-spacing: 0 8px; table-layout: fixed; }
+  .scroll-container { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; -ms-overflow-style: none; scrollbar-width: none; }
+  .scroll-container::-webkit-scrollbar { display: none; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  thead th { position: sticky; top: 0; background: var(--card-bg); z-index: 1; padding: 10px 4px; border-bottom: 1px solid var(--border); }
   th { color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; padding: 8px 4px; vertical-align: middle; }
+  .col-pin { width: 50px; }
+  .col-note { width: 60px; }
+  .col-midi { width: 60px; }
+  .col-s-action { width: 120px; }
   .left { text-align: left; }
   .center { text-align: center; }
   td { padding: 8px 4px; background: rgba(0,0,0,0.1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.85rem; vertical-align: middle; }
   td:first-child { border-radius: 8px 0 0 8px; }
   td:last-child { border-radius: 0 8px 8px 0; }
-  .danger { background: var(--danger); color: white; padding: 6px 8px; font-size: 0.75rem; vertical-align: middle; }
+  .danger { background: var(--danger); color: white; padding: 6px 10px; font-size: 0.75rem; vertical-align: middle; }
+  .upload-btn { padding: 10px 14px; font-size: 0.95rem; }
   </style>
 </head>
 <body>
@@ -60,12 +71,14 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <div class="row">
     <label for="fileInput" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
     <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
-    <button onclick="uploadFile()" class="primary">Upload</button>
+    <button onclick="uploadFile()" class="primary upload-btn">Upload</button>
   </div>
+  <div class="scroll-container">
   <table>
     <thead><tr><th class="col-name left">Name</th><th class="col-size center">Size</th><th class="col-action center">Action</th></tr></thead>
     <tbody id="fileBody"></tbody>
   </table>
+  </div>
   <div id="storageInfo" style="margin-top: 10px; font-size: 0.9rem; color: var(--text-muted); text-align: center;"></div>
 </div>
 <div class="card">
@@ -75,7 +88,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   </div>
   <div class="row">
     <input type="number" id="sTime" placeholder="Enter New Duration" />
-    <button onclick="saveTime()" class="primary">Save</button>
+    <button onclick="saveTime()" class="primary upload-btn">Save</button>
   </div>
 </div>
 <div class="card">
@@ -84,12 +97,19 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <input type="number" id="sPin" placeholder="GPIO" />
 <input type="text" id="sNote" placeholder="Note" />
 <input type="number" id="sMidi" placeholder="MIDI Note Number" />
-<button onclick="addSolenoid()" class="primary">Add and Save</button>
+<div class="row">
+  <button onclick="backupConfig()" class="primary upload-btn" style="flex: 1;">Download</button>
+  <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
+  <button onclick="document.getElementById('restoreInput').click()" class="danger upload-btn" style="flex: 1;">Upload</button>
+  <button onclick="addSolenoid()" class="primary upload-btn" style="flex: 1;">Save</button>
 </div>
+</div>
+<div class="scroll-container">
 <table>
   <thead><tr><th class="col-pin center">GPIO</th><th class="col-note center">Note</th><th class="col-midi center">MIDI</th><th class="col-s-action center">Action</th></tr></thead>
   <tbody id="solenoidBody"></tbody>
 </table>
+</div>
 </div>
 <div class="card">
 <h2>WiFi Manager</h2>
@@ -103,7 +123,9 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         <span class="slider"></span>
     </label>
 </div>
-<button onclick="saveWifi()" class="primary">Save and Apply</button>
+<div class="row">
+    <button onclick="saveWifi()" class="primary upload-btn" style="flex: 1;">Save and Apply</button>
+</div>
 </div>
 </div>
 <div class="card">
@@ -113,8 +135,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <div class="row">
       <label for="otaBinInput" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="document.getElementById('otaBinInput').click()">Select .bin File</label>
       <input type="file" id="otaBinInput" accept=".bin" style="display:none;" onchange="document.querySelector('label[for=\'otaBinInput\']').innerText = this.files[0].name" />
-      <button onclick="uploadOta()" class="primary">Upload</button>
-  </div>
+      <button onclick="uploadFile()" class="primary upload-btn">Upload</button>
+      </div>
   <div style="font-size: 0.8rem; color: var(--text-muted);">
       <span>Last Update: {{LAST_UPDATE}}</span>
   </div>
@@ -207,6 +229,18 @@ async function uploadOta() {
     } else sInfo.innerText = 'SD Card not detected';
   }
   async function testSolenoid(pin) { await fetch('/api/solenoid/test?pin='+pin, { method: 'POST' }); }
+  async function backupConfig() {
+    const res = await fetch('/api/backup');
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'backup.json'; a.click();
+  }
+  async function restoreConfig() {
+    const input = document.getElementById('restoreInput'); if(!input.files[0]) return;
+    const text = await input.files[0].text();
+    await fetch('/api/restore', { method: 'POST', body: text });
+    input.value = ''; loadData();
+  }
   async function saveTime() {
     const timeInput = document.getElementById('sTime'); const currentTimeText = document.getElementById('currentTime').innerText;
     const newTime = timeInput.value;
@@ -272,6 +306,49 @@ String sanitizeFilename(String filename) {
     else clean += '_';
   }
   return clean;
+}
+
+esp_err_t api_backup_handler(httpd_req_t *req) {
+  if (req->method == HTTP_GET) {
+    File file = SD.open("/solenoids.txt", FILE_READ);
+    if (!file) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Config not found");
+    String json = "{\"solenoids\":[";
+    while (file.available()) {
+        String line = file.readStringUntil('\n'); line.trim();
+        if (line.length() == 0) continue;
+        int c1 = line.indexOf(','), c2 = line.indexOf(',', c1 + 1);
+        json += "{\"pin\":" + line.substring(0, c1) + ",\"note\":\"" + line.substring(c1+1, c2) + "\",\"midi\":" + line.substring(c2+1) + "},";
+    }
+    file.close();
+    if (json.endsWith(",")) json.remove(json.length() - 1);
+    json += "],\"duration\":" + String(player.getSolenoidTime()) + "}";
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"backup.json\"");
+    return httpd_resp_send(req, json.c_str(), json.length());
+  }
+  return HTTPD_404_NOT_FOUND;
+}
+
+esp_err_t api_restore_handler(httpd_req_t *req) {
+  if (req->method == HTTP_POST) {
+    char buf[1024]; int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
+    if (ret > 0) {
+      buf[ret] = 0; String data(buf);
+      int dStart = data.indexOf("\"duration\":") + 11;
+      int dEnd = data.indexOf(",", dStart); if(dEnd == -1) dEnd = data.indexOf("}", dStart);
+      player.setSolenoidTime(data.substring(dStart, dEnd).toInt());
+      File file = SD.open("/solenoids.txt", FILE_WRITE);
+      int start = data.indexOf("{\"pin\":");
+      while (start >= 0) {
+        int end = data.indexOf("}", start); String obj = data.substring(start, end + 1);
+        int p1 = obj.indexOf(":")+1, p2 = obj.indexOf(",", p1), p3 = obj.indexOf(":", p2)+2, p4 = obj.indexOf("\"", p3), p5 = obj.indexOf(":", p4)+1, p6 = obj.indexOf("}", p5);
+        file.println(obj.substring(p1, p2) + "," + obj.substring(p3, p4) + "," + obj.substring(p5, p6));
+        start = data.indexOf("{\"pin\":", end);
+      }
+      file.close(); solenoid.loadConfig(); return httpd_resp_send(req, "OK", 2);
+    }
+  }
+  return ESP_FAIL;
 }
 
 esp_err_t api_solenoid_test_handler(httpd_req_t *req) {
@@ -370,7 +447,7 @@ esp_err_t api_files_handler(httpd_req_t *req) {
       char name[128];
       if (httpd_query_key_value(buf, "name", name, sizeof(name)) == ESP_OK) {
         String decodedName = String(name); decodedName.replace("%20", " ");
-        if (sdcard.deleteFile(("/" + decodedName).c_str())) { Serial.printf("[WEBSERVER]: File dihapus: %s\n", name); needsScan = true; return httpd_resp_send(req, "OK", 2); }
+        if (sdcard.deleteFile(("/" + decodedName).c_str())) { Serial.printf("[WEBSERVER]: File deleted: %s\n", name); needsScan = true; return httpd_resp_send(req, "OK", 2); }
       }
     }
     return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Delete Failed");
@@ -422,7 +499,7 @@ esp_err_t upload_handler(httpd_req_t *req) {
         int headerEnd = chunk.indexOf("\r\n\r\n");
         if (headerEnd >= 0) {
           headersParsed = true; header_offset = headerEnd + 4;
-          if (filename.length() > 0 && SD.exists(filename.c_str())) { Serial.printf("[WEBSERVER]: File sudah ada, skip: %s\n", filename.c_str()); return httpd_resp_send(req, "SKIP", 4); }
+          if (filename.length() > 0 && SD.exists(filename.c_str())) { Serial.printf("[WEBSERVER]: File exists, skip: %s\n", filename.c_str()); return httpd_resp_send(req, "SKIP", 4); }
           if (filename.length() > 0 && (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
             file = sdcard.openFile(filename.c_str(), FILE_WRITE); if (!file) return ESP_FAIL;
             if (recv_len > header_offset) file.write((uint8_t *)(buf + header_offset), recv_len - header_offset);
@@ -431,7 +508,7 @@ esp_err_t upload_handler(httpd_req_t *req) {
       } else if (file) file.write((uint8_t *)buf, recv_len);
     }
   }
-  if (file) { file.close(); Serial.printf("[WEBSERVER]: File diunggah: %s\n", filename.c_str()); needsScan = true; return httpd_resp_send(req, "OK", 2); }
+  if (file) { file.close(); Serial.printf("[WEBSERVER]: File uploaded: %s\n", filename.c_str()); needsScan = true; return httpd_resp_send(req, "OK", 2); }
   return ESP_FAIL;
 }
 
@@ -439,16 +516,20 @@ void WebServerManager::begin() {
   if (active) return;
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
   Serial.println("[WEBSERVER]: Starting web server...");
-  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) dnsServer.start(53, "*", WiFi.softAPIP());
+  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer.start(53, "*", WiFi.softAPIP());
+    Serial.println("[WEBSERVER]: DNS Server (Captive Portal) started");
+  }
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80; config.max_uri_handlers = 20;
-  config.max_open_sockets = 7; // Tingkatkan untuk akses multi-device
+  config.max_open_sockets = 7;
   if (httpd_start(&server, &config) != ESP_OK) return;
   MDNS.end();
   delay(500);
   if (MDNS.begin("mydashboard")) { 
     MDNS.addService("http", "tcp", 80); 
-    Serial.println("[WEBSERVER]: mDNS started successfully: http://mydashboard.local"); 
+    Serial.println("[WEBSERVER]: mDNS started: http://mydashboard.local"); 
   } else {
     Serial.println("[WEBSERVER]: ERROR: Failed to start mDNS");
   }
@@ -458,6 +539,8 @@ void WebServerManager::begin() {
   httpd_uri_t solenoids_get_uri = {"/api/solenoids", HTTP_GET, api_solenoids_handler, nullptr};
   httpd_uri_t solenoids_post_uri = {"/api/solenoids", HTTP_POST, api_solenoids_handler, nullptr};
   httpd_uri_t solenoid_test_uri = {"/api/solenoid/test", HTTP_POST, api_solenoid_test_handler, nullptr};
+  httpd_uri_t backup_uri = {"/api/backup", HTTP_GET, api_backup_handler, nullptr};
+  httpd_uri_t restore_uri = {"/api/restore", HTTP_POST, api_restore_handler, nullptr};
   httpd_uri_t time_get_uri = {"/api/time", HTTP_GET, api_time_handler, nullptr};
   httpd_uri_t time_post_uri = {"/api/time", HTTP_POST, api_time_handler, nullptr};
   httpd_uri_t files_get_uri = {"/api/files", HTTP_GET, api_files_handler, nullptr};
@@ -485,7 +568,6 @@ void WebServerManager::begin() {
           Serial.println("[HTTP_OTA]: Update Success, restarting...");
           
           time_t now = time(nullptr);
-          // Only update timestamp if NTP is synchronized
           if (now > 1000000000) {
               char timeString[25];
               struct tm *timeinfo = localtime(&now);
@@ -510,6 +592,8 @@ void WebServerManager::begin() {
   httpd_register_uri_handler(server, &solenoids_get_uri);
   httpd_register_uri_handler(server, &solenoids_post_uri);
   httpd_register_uri_handler(server, &solenoid_test_uri);
+  httpd_register_uri_handler(server, &backup_uri);
+  httpd_register_uri_handler(server, &restore_uri);
   httpd_register_uri_handler(server, &time_get_uri);
   httpd_register_uri_handler(server, &time_post_uri);
   httpd_register_uri_handler(server, &files_get_uri);
@@ -518,15 +602,20 @@ void WebServerManager::begin() {
   httpd_register_uri_handler(server, &wifi_post_uri);
   httpd_register_uri_handler(server, &ota_uri);
 
-  const char *captive_paths[] = {"/generate_204", "/gen_204", "/redirect", "/connecttest.txt", "/ncsi.txt", "/hotspot-detect.html"};
+  const char *captive_paths[] = {"/generate_204", "/gen_204", "/redirect", "/connecttest.txt", "/ncsi.txt", "/hotspot-detect.html", "/hotspot-detect.php"};
   for (const char *path : captive_paths) {
-    httpd_uri_t uri = {path, HTTP_GET, root_handler, nullptr};
-    httpd_uri_t uri_post = {path, HTTP_POST, root_handler, nullptr};
+    httpd_uri_t uri = {path, HTTP_GET, captive_handler, nullptr};
     httpd_register_uri_handler(server, &uri);
-    httpd_register_uri_handler(server, &uri_post);
   }
   active = true;
   Serial.println("[SYSTEM]: Webserver started");
+}
+
+esp_err_t captive_handler(httpd_req_t *req) {
+  // Redirect all portal requests to root
+  httpd_resp_set_status(req, "302 Found");
+  httpd_resp_set_hdr(req, "Location", "/");
+  return httpd_resp_send(req, nullptr, 0);
 }
 
 void WebServerManager::update() {
@@ -540,9 +629,9 @@ void WebServerManager::stop() {
   Serial.println("[SYSTEM]: Webserver stopped");
   if (server) { httpd_stop(server); server = nullptr; }
   dnsServer.stop();
-  MDNS.end(); // Tambahkan ini
-  display.showStatus("WIFI OFF");
+  MDNS.end();
   active = false;
 }
 
 bool WebServerManager::isActive() const { return active; }
+
