@@ -6,7 +6,6 @@
 #include "player.h"
 #include "sdcard.h"
 #include "solenoid.h"
-#include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <FS.h>
 #include <SD.h>
@@ -17,16 +16,74 @@
 #include <time.h>
 
 extern void triggerBuzzer(uint16_t duration);
-
-// Forward declaration
-esp_err_t captive_handler(httpd_req_t *req);
+String sanitizeFilename(String filename); // Forward declaration
 
 WebServerManager webServer;
 namespace {
 httpd_handle_t server = nullptr;
-DNSServer dnsServer;
 bool active = false;
 bool needsScan = false;
+}
+
+const char htmlPageAP[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+  <title>Setup AP</title>
+  <style>
+  :root { --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-muted: #94a3b8; --accent: #38bdf8; --border: #334155; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; }
+  .card { background: var(--card-bg); padding: 20px; border-radius: 16px; max-width: 400px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); border: 1px solid var(--border); }
+  h2 { margin-top: 0; color: var(--accent); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 15px; }
+  input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: white; flex-grow: 1; box-sizing: border-box; }
+  button { padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%; background: var(--accent); color: #0f172a; }
+  </style>
+</head>
+<body>
+<div class="card">
+<h2>WiFi Manager</h2>
+<div style="display: flex; flex-direction: column; gap: 10px;">
+<input type="text" id="wifiSsid" placeholder="SSID" />
+<input type="text" id="wifiPass" placeholder="Password" />
+<div class="row" style="justify-content: space-between; margin-top: 5px;">
+    <label style="font-size: 0.95rem; color: var(--text-muted);">Enable WiFi STA</label>
+    <label class="switch">
+        <input type="checkbox" id="wifiEnable">
+        <span class="slider"></span>
+    </label>
+</div>
+<div class="row">
+    <button onclick="saveWifi()" class="primary upload-btn" style="flex: 1;">Save and Apply</button>
+</div>
+</div>
+</div>
+<footer style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 20px;">
+&copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat
+</footer>
+<script>
+async function loadWifi() {
+    const res = await fetch('/api/wifi');
+    const config = await res.json();
+    document.getElementById('wifiSsid').value = config.ssid || "";
+    document.getElementById('wifiPass').value = config.pass || "";
+    document.getElementById('wifiEnable').checked = config.enable || false;
+}
+async function saveWifi() {
+    const ssid = document.getElementById('wifiSsid').value;
+    const enable = document.getElementById('wifiEnable').checked;
+    if (enable && !ssid) { alert('SSID is required if STA is enabled!'); return; }
+    
+    const res = await fetch('/api/wifi', { method: 'POST', body: JSON.stringify({ssid: ssid, pass: document.getElementById('wifiPass').value, enable: enable}) });
+    if (!res.ok) alert('Failed to save settings');
+}
+loadWifi();
+</script>
+</body>
+</html>
+)rawliteral";
 
 const char htmlPage[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -62,14 +119,15 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   td:first-child { border-radius: 8px 0 0 8px; }
   td:last-child { border-radius: 0 8px 8px 0; }
   .danger { background: var(--danger); color: white; padding: 6px 10px; font-size: 0.75rem; vertical-align: middle; }
-  .upload-btn { padding: 10px 14px; font-size: 0.95rem; }
+  .upload-btn { padding: 0 14px; font-size: 0.95rem; box-sizing: border-box; height: 42px; display: inline-flex; align-items: center; cursor: pointer; }
+  .file-label { padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 42px; box-sizing: border-box; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center; }
   </style>
 </head>
 <body>
 <div class="card">
   <h2>MIDI File Manager</h2>
   <div class="row">
-    <label for="fileInput" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
+    <label for="fileInput" style="padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 42px; box-sizing: border-box; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center;" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
     <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
     <button onclick="uploadFile()" class="primary upload-btn">Upload</button>
   </div>
@@ -157,7 +215,6 @@ const noteMap = {
     "c4": 60, "c#4": 61, "d4": 62, "d#4": 63, "e4": 64, "f4": 65, "f#4": 66, "g4": 67, "g#4": 68, "a4": 69, "a#4": 70, "b4": 71,
     "c5": 72, "c#5": 73, "d5": 74, "d#5": 75, "e5": 76, "f5": 77, "f#5": 78, "g5": 79, "g#5": 80, "a5": 81, "a#5": 82, "b5": 83
 };
-
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sNote').addEventListener('input', (e) => {
         const noteInput = e.target.value.toLowerCase().trim();
@@ -169,7 +226,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
-
 async function uploadOta() {
     const fileInput = document.getElementById('otaBinInput');
     if (!fileInput.files[0]) { alert('Select .bin file first!'); return; }
@@ -291,21 +347,99 @@ async function uploadOta() {
 </body>
 </html>
 )rawliteral";
+
+esp_err_t api_restart_handler(httpd_req_t *req) {
+    httpd_resp_send(req, "OK", 2);
+    delay(500);
+    ESP.restart();
+    return ESP_OK;
 }
 
-String sanitizeFilename(String filename) {
-  String clean = "/";
-  filename.toLowerCase();
-  int lastSlash = filename.lastIndexOf('/');
-  if (lastSlash >= 0) filename = filename.substring(lastSlash + 1);
-  int lastBackslash = filename.lastIndexOf('\\');
-  if (lastBackslash >= 0) filename = filename.substring(lastBackslash + 1);
-  for (size_t i = 0; i < filename.length(); i++) {
-    char c = filename[i];
-    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') clean += c;
-    else clean += '_';
+esp_err_t root_handler(httpd_req_t *req) {
+  const char* page = (WiFi.getMode() == WIFI_AP) ? htmlPageAP : htmlPage;
+  String output = String(page);
+  output.replace("{{FW_VERSION}}", FW_VERSION);
+  Preferences prefs; prefs.begin("ota", true);
+  output.replace("{{LAST_UPDATE}}", prefs.getString("last", "-"));
+  prefs.end();
+  httpd_resp_set_type(req, "text/html");
+  return httpd_resp_send(req, output.c_str(), HTTPD_RESP_USE_STRLEN);
+}
+
+esp_err_t upload_handler(httpd_req_t *req) {
+  char buf[1024]; size_t recv_len; String filename = ""; bool headersParsed = false; size_t header_offset = 0; File file;
+  if (req->content_len > 0) {
+    while ((recv_len = httpd_req_recv(req, buf, sizeof(buf))) > 0) {
+      if (!headersParsed) {
+        String chunk(buf, recv_len); int namePos = chunk.indexOf("filename=\"");
+        if (namePos >= 0) { int start = namePos + 10; int end = chunk.indexOf("\"", start); if (end > start) filename = sanitizeFilename(chunk.substring(start, end)); }
+        int headerEnd = chunk.indexOf("\r\n\r\n");
+        if (headerEnd >= 0) {
+          headersParsed = true; header_offset = headerEnd + 4;
+          if (filename.length() > 0 && SD.exists(filename.c_str())) { Serial.printf("[WEBSERVER]: File exists, skip: %s\n", filename.c_str()); return httpd_resp_send(req, "SKIP", 4); }
+          if (filename.length() > 0 && (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
+            file = sdcard.openFile(filename.c_str(), FILE_WRITE); if (!file) return ESP_FAIL;
+            if (recv_len > header_offset) file.write((uint8_t *)(buf + header_offset), recv_len - header_offset);
+          } else return ESP_FAIL;
+        }
+      } else if (file) file.write((uint8_t *)buf, recv_len);
+    }
   }
-  return clean;
+  if (file) { file.close(); Serial.printf("[WEBSERVER]: File uploaded: %s\n", filename.c_str()); needsScan = true; return httpd_resp_send(req, "OK", 2); }
+  return ESP_FAIL;
+}
+
+esp_err_t api_solenoids_handler(httpd_req_t *req) {
+  if (req->method == HTTP_GET) {
+    if (digitalRead(PIN_SD_DET) == HIGH) return httpd_resp_send(req, "[]", 2);
+    String json = "[";
+    Solenoid *items = solenoid.getItems();
+    for (uint8_t i = 0; i < solenoid.getCount(); i++) {
+      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" + items[i].getNote() + "\",\"midi\":" + String(items[i].getMidiNote()) + "}";
+      if (i < solenoid.getCount() - 1) json += ",";
+    }
+    json += "]";
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, json.c_str(), json.length());
+  } else if (req->method == HTTP_POST) {
+    char buf[1024];
+    int ret = httpd_req_recv(req, buf, sizeof(buf));
+    if (ret > 0) {
+      while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
+      String data(buf);
+      int start = 0;
+      while ((start = data.indexOf("{\"pin\":", start)) >= 0) {
+        int end = data.indexOf("}", start);
+        String obj = data.substring(start, end + 1);
+        int pStart = obj.indexOf(":") + 1; int pComma = obj.indexOf(",", pStart); int pin = obj.substring(pStart, pComma).toInt();
+        int nStart = obj.indexOf(":", pComma) + 2; int nEnd = obj.indexOf("\"", nStart); String note = obj.substring(nStart, nEnd);
+        int mStart = obj.indexOf(":", nEnd + 1) + 1; int mEnd = obj.indexOf("}", mStart); int midi = obj.substring(mStart, mEnd).toInt();
+        solenoid.addSolenoid(pin, note, midi);
+        start = end;
+      }
+      solenoid.saveConfig();
+      httpd_resp_send(req, "OK", 2);
+    }
+    return ESP_OK;
+  }
+  return ESP_FAIL;
+}
+
+esp_err_t api_solenoid_test_handler(httpd_req_t *req) {
+  if (req->method == HTTP_POST) {
+    char buf[128];
+    size_t len = httpd_req_get_url_query_len(req);
+    if (len < sizeof(buf)) {
+      httpd_req_get_url_query_str(req, buf, len + 1);
+      char pinVal[8];
+      if (httpd_query_key_value(buf, "pin", pinVal, sizeof(pinVal)) == ESP_OK) {
+        solenoid.test(String(pinVal).toInt());
+        return httpd_resp_send(req, "OK", 2);
+      }
+    }
+    return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid Pin");
+  }
+  return HTTPD_404_NOT_FOUND;
 }
 
 esp_err_t api_backup_handler(httpd_req_t *req) {
@@ -347,59 +481,6 @@ esp_err_t api_restore_handler(httpd_req_t *req) {
       }
       file.close(); solenoid.loadConfig(); return httpd_resp_send(req, "OK", 2);
     }
-  }
-  return ESP_FAIL;
-}
-
-esp_err_t api_solenoid_test_handler(httpd_req_t *req) {
-  if (req->method == HTTP_POST) {
-    char buf[128];
-    size_t len = httpd_req_get_url_query_len(req);
-    if (len < sizeof(buf)) {
-      httpd_req_get_url_query_str(req, buf, len + 1);
-      char pinVal[8];
-      if (httpd_query_key_value(buf, "pin", pinVal, sizeof(pinVal)) == ESP_OK) {
-        solenoid.test(String(pinVal).toInt());
-        return httpd_resp_send(req, "OK", 2);
-      }
-    }
-    return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid Pin");
-  }
-  return HTTPD_404_NOT_FOUND;
-}
-
-esp_err_t api_solenoids_handler(httpd_req_t *req) {
-  if (req->method == HTTP_GET) {
-    if (digitalRead(PIN_SD_DET) == HIGH) return httpd_resp_send(req, "[]", 2);
-    String json = "[";
-    Solenoid *items = solenoid.getItems();
-    for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" + items[i].getNote() + "\",\"midi\":" + String(items[i].getMidiNote()) + "}";
-      if (i < solenoid.getCount() - 1) json += ",";
-    }
-    json += "]";
-    httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, json.c_str(), json.length());
-  } else if (req->method == HTTP_POST) {
-    char buf[1024];
-    int ret = httpd_req_recv(req, buf, sizeof(buf));
-    if (ret > 0) {
-      while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
-      String data(buf);
-      int start = 0;
-      while ((start = data.indexOf("{\"pin\":", start)) >= 0) {
-        int end = data.indexOf("}", start);
-        String obj = data.substring(start, end + 1);
-        int pStart = obj.indexOf(":") + 1; int pComma = obj.indexOf(",", pStart); int pin = obj.substring(pStart, pComma).toInt();
-        int nStart = obj.indexOf(":", pComma) + 2; int nEnd = obj.indexOf("\"", nStart); String note = obj.substring(nStart, nEnd);
-        int mStart = obj.indexOf(":", nEnd + 1) + 1; int mEnd = obj.indexOf("}", mStart); int midi = obj.substring(mStart, mEnd).toInt();
-        solenoid.addSolenoid(pin, note, midi);
-        start = end;
-      }
-      solenoid.saveConfig();
-      httpd_resp_send(req, "OK", 2);
-    }
-    return ESP_OK;
   }
   return ESP_FAIL;
 }
@@ -479,60 +560,53 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
   return ESP_FAIL;
 }
 
-esp_err_t root_handler(httpd_req_t *req) {
-  String page = String(htmlPage);
-  page.replace("{{FW_VERSION}}", FW_VERSION);
-  Preferences prefs; prefs.begin("ota", true);
-  page.replace("{{LAST_UPDATE}}", prefs.getString("last", "-"));
-  prefs.end();
-  httpd_resp_set_type(req, "text/html");
-  return httpd_resp_send(req, page.c_str(), HTTPD_RESP_USE_STRLEN);
-}
-
-esp_err_t upload_handler(httpd_req_t *req) {
-  char buf[1024]; size_t recv_len; String filename = ""; bool headersParsed = false; size_t header_offset = 0; File file;
-  if (req->content_len > 0) {
-    while ((recv_len = httpd_req_recv(req, buf, sizeof(buf))) > 0) {
-      if (!headersParsed) {
-        String chunk(buf, recv_len); int namePos = chunk.indexOf("filename=\"");
-        if (namePos >= 0) { int start = namePos + 10; int end = chunk.indexOf("\"", start); if (end > start) filename = sanitizeFilename(chunk.substring(start, end)); }
-        int headerEnd = chunk.indexOf("\r\n\r\n");
-        if (headerEnd >= 0) {
-          headersParsed = true; header_offset = headerEnd + 4;
-          if (filename.length() > 0 && SD.exists(filename.c_str())) { Serial.printf("[WEBSERVER]: File exists, skip: %s\n", filename.c_str()); return httpd_resp_send(req, "SKIP", 4); }
-          if (filename.length() > 0 && (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
-            file = sdcard.openFile(filename.c_str(), FILE_WRITE); if (!file) return ESP_FAIL;
-            if (recv_len > header_offset) file.write((uint8_t *)(buf + header_offset), recv_len - header_offset);
-          } else return ESP_FAIL;
-        }
-      } else if (file) file.write((uint8_t *)buf, recv_len);
-    }
+String sanitizeFilename(String filename) {
+  String clean = "/";
+  filename.toLowerCase();
+  int lastSlash = filename.lastIndexOf('/');
+  if (lastSlash >= 0) filename = filename.substring(lastSlash + 1);
+  int lastBackslash = filename.lastIndexOf('\\');
+  if (lastBackslash >= 0) filename = filename.substring(lastBackslash + 1);
+  for (size_t i = 0; i < filename.length(); i++) {
+    char c = filename[i];
+    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') clean += c;
+    else clean += '_';
   }
-  if (file) { file.close(); Serial.printf("[WEBSERVER]: File uploaded: %s\n", filename.c_str()); needsScan = true; return httpd_resp_send(req, "OK", 2); }
-  return ESP_FAIL;
+  return clean;
 }
 
-void WebServerManager::begin() {
+void WebServerManager::beginAPMinimal() {
+  if (active) return;
+  httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+  config.server_port = 80;
+  if (httpd_start(&server, &config) != ESP_OK) return;
+
+  httpd_uri_t root_uri = {"/", HTTP_GET, root_handler, nullptr};
+  httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
+  httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler, nullptr};
+  httpd_uri_t restart_uri = {"/api/restart", HTTP_POST, api_restart_handler, nullptr};
+
+  httpd_register_uri_handler(server, &root_uri);
+  httpd_register_uri_handler(server, &wifi_get_uri);
+  httpd_register_uri_handler(server, &wifi_post_uri);
+  httpd_register_uri_handler(server, &restart_uri);
+
+  active = true;
+  Serial.println("[SYSTEM]: Webserver started (AP Minimal)");
+}
+
+void WebServerManager::beginSTAFull() {
   if (active) return;
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-  Serial.println("[WEBSERVER]: Starting web server...");
-  if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
-    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
-    dnsServer.start(53, "*", WiFi.softAPIP());
-    Serial.println("[WEBSERVER]: DNS Server (Captive Portal) started");
+  
+  if (MDNS.begin("mydashboard")) { 
+    MDNS.addService("http", "tcp", 80); 
   }
+
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80; config.max_uri_handlers = 20;
   config.max_open_sockets = 7;
   if (httpd_start(&server, &config) != ESP_OK) return;
-  MDNS.end();
-  delay(500);
-  if (MDNS.begin("mydashboard")) { 
-    MDNS.addService("http", "tcp", 80); 
-    Serial.println("[WEBSERVER]: mDNS started: http://mydashboard.local"); 
-  } else {
-    Serial.println("[WEBSERVER]: ERROR: Failed to start mDNS");
-  }
 
   httpd_uri_t root_uri = {"/", HTTP_GET, root_handler, nullptr};
   httpd_uri_t upload_uri = {"/upload", HTTP_POST, upload_handler, nullptr};
@@ -548,43 +622,16 @@ void WebServerManager::begin() {
   httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
   httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler, nullptr};
   httpd_uri_t ota_uri = {"/update", HTTP_POST, [](httpd_req_t *req) {
-      Serial.println("[HTTP_OTA]: Incoming OTA request...");
       size_t content_len = req->content_len;
       if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
-      if (!Update.begin(content_len)) {
-          Serial.printf("[HTTP_OTA]: Update.begin failed: %d\n", Update.getError());
-          return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
-      }
+      if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
       char *buf = (char *)malloc(1024); int ret;
       while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
-          if (Update.write((uint8_t*)buf, ret) != ret) {
-              Serial.printf("[HTTP_OTA]: Update.write failed: %d\n", Update.getError());
-              free(buf); Update.end();
-              return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
-          }
+          if (Update.write((uint8_t*)buf, ret) != ret) { free(buf); Update.end(); return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed"); }
       }
       free(buf);
-      if (Update.end()) {
-          Serial.println("[HTTP_OTA]: Update Success, restarting...");
-          
-          time_t now = time(nullptr);
-          if (now > 1000000000) {
-              char timeString[25];
-              struct tm *timeinfo = localtime(&now);
-              strftime(timeString, sizeof(timeString), "%Y-%m-%d %H:%M:%S", timeinfo);
-              
-              Preferences prefs; prefs.begin("ota", false);
-              prefs.putString("last", String(timeString));
-              prefs.end();
-          }
-          
-          httpd_resp_send(req, "OK", 2);
-          delay(1000); ESP.restart();
-      } else {
-          Serial.printf("[HTTP_OTA]: Update.end failed: %d\n", Update.getError());
-          return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
-      }
-      return ESP_OK;
+      if (Update.end()) { delay(1000); ESP.restart(); return httpd_resp_send(req, "OK", 2); }
+      else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
   }, nullptr};
 
   httpd_register_uri_handler(server, &root_uri);
@@ -602,36 +649,21 @@ void WebServerManager::begin() {
   httpd_register_uri_handler(server, &wifi_post_uri);
   httpd_register_uri_handler(server, &ota_uri);
 
-  const char *captive_paths[] = {"/generate_204", "/gen_204", "/redirect", "/connecttest.txt", "/ncsi.txt", "/hotspot-detect.html", "/hotspot-detect.php"};
-  for (const char *path : captive_paths) {
-    httpd_uri_t uri = {path, HTTP_GET, captive_handler, nullptr};
-    httpd_register_uri_handler(server, &uri);
-  }
   active = true;
-  Serial.println("[SYSTEM]: Webserver started");
-}
-
-esp_err_t captive_handler(httpd_req_t *req) {
-  // Redirect all portal requests to root
-  httpd_resp_set_status(req, "302 Found");
-  httpd_resp_set_hdr(req, "Location", "/");
-  return httpd_resp_send(req, nullptr, 0);
+  Serial.println("[SYSTEM]: Webserver started (STA Full)");
 }
 
 void WebServerManager::update() {
   if (!active) return;
-  dnsServer.processNextRequest();
   if (needsScan) { sdcard.scan(); needsScan = false; }
 }
 
 void WebServerManager::stop() {
   if (!active) return;
-  Serial.println("[SYSTEM]: Webserver stopped");
+  Serial.println("[WEBSERVER]: Webserver stopped");
   if (server) { httpd_stop(server); server = nullptr; }
-  dnsServer.stop();
   MDNS.end();
   active = false;
 }
 
 bool WebServerManager::isActive() const { return active; }
-

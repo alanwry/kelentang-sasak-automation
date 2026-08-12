@@ -8,19 +8,17 @@ class WiFiManager {
 public:
   WiFiManager();
   void begin();
-  void update(); // Non-blocking state machine
+  void update(); 
 
-  // Mode Control
-  void startAP();
-  void startSTA();
+  // New streamlined modes
+  void startAPMinimal(); // Setup mode
+  void startSTAOnly();   // Normal operational mode
+
   void stopAll();
 
   // Settings
   void saveSettings(String ssid, String password, bool enableSTA);
   void getSettings(String &ssid, String &password, bool &enableSTA);
-  String getSSID() const { return ssid; }
-  String getPassword() const { return password; }
-
   bool isSTAEnabled();
 
 private:

@@ -20,10 +20,8 @@ public:
   void begin();
   void update();
   ButtonID getEvent();
+  uint32_t getModeHoldDuration(); // Re-added
 
-  bool getWifiEnableLongPress();
-  bool getWifiDisableLongPress();
-  uint32_t getStopHoldDuration();
   bool isInitialized();
 
 private:
@@ -32,14 +30,13 @@ private:
 
   bool lastState[4];
   bool pressedState[4];
+  uint32_t modePressStart = 0; // Added
+  bool modeHeld = false;        // Added
 
   uint32_t lastTime[4];
-  uint32_t lastPressTime[4];
-  bool stopLongPressTriggered = false;
-  bool stopHeld = false;
-  uint32_t stopPressStart = 0;
 };
 
 extern ButtonManager button;
+
 
 #endif

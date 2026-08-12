@@ -31,8 +31,8 @@ bool ButtonManager::isInitialized() {
   return initialized;
 }
 
-uint32_t ButtonManager::getStopHoldDuration() {
-  if (stopHeld) return millis() - stopPressStart;
+uint32_t ButtonManager::getModeHoldDuration() {
+  if (modeHeld) return millis() - modePressStart;
   return 0;
 }
 
@@ -74,22 +74,22 @@ void ButtonManager::update() {
               Serial.println("[BUTTON]: NEXT pressed");
               break;
             case 3:
-              // ARCHITECTURAL: Hold duration on MODE button triggers WiFi AP/STA toggle
-              stopHeld = true;
-              stopPressStart = now;
-              Serial.printf("[BUTTON]: MODE hold started at %lu\n", stopPressStart);
+              modeHeld = true;
+              modePressStart = now;
+              Serial.println("[BUTTON]: MODE hold started");
               break;
           }
         } else {
           pressedState[i] = false;
           if (i == 3) {
-            Serial.printf("[BUTTON]: MODE released. Duration: %lu ms\n", now - stopPressStart);
-            if (now - stopPressStart < WIFI_ENABLE_MS) {
-              event = BTN_MODE;
-              Serial.println("[BUTTON]: MODE (short press) event generated");
+            if (modeHeld) {
+              Serial.println("[BUTTON]: MODE released");
+              modeHeld = false;
+              // If not held long, treat as single press for event (if needed)
+              if (now - modePressStart < 500) {
+                  event = BTN_MODE;
+              }
             }
-            stopHeld = false;
-            stopPressStart = 0;
           }
         }
       }
@@ -101,11 +101,4 @@ ButtonID ButtonManager::getEvent() {
   ButtonID e = event;
   event = BTN_NONE;
   return e;
-}
-
-bool ButtonManager::getWifiEnableLongPress() {
-  return false;
-}
-bool ButtonManager::getWifiDisableLongPress() {
-  return false;
 }

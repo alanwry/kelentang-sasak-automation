@@ -5,12 +5,10 @@
 
 class WebServerManager {
 public:
-  void begin();
-
+  void beginAPMinimal(); // AP Setup Dashboard
+  void beginSTAFull();   // Normal Operation Dashboard
   void stop();
-
   void update();
-
   bool isActive() const;
 };
 
