@@ -1,6 +1,5 @@
 #include "wifi_manager.h"
 #include "config.h"
-#include "display.h"
 #include "esp_wifi.h"
 #include "webserver.h"
 #include <ESPmDNS.h>

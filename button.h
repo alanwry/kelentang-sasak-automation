@@ -20,7 +20,6 @@ public:
   void begin();
   void update();
   ButtonID getEvent();
-  uint32_t getModeHoldDuration(); // Re-added
 
   bool isInitialized();
 
@@ -30,8 +29,6 @@ private:
 
   bool lastState[4];
   bool pressedState[4];
-  uint32_t modePressStart = 0; // Added
-  bool modeHeld = false;        // Added
 
   uint32_t lastTime[4];
 };

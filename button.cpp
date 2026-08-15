@@ -20,7 +20,7 @@ void ButtonManager::begin() {
   initialized = true;
 
   for (int i = 0; i < 4; i++) {
-    pcf.pinMode(buttonPin[i], INPUT_PULLUP);
+    pcf.pinMode(buttonPin[i], INPUT);
     lastState[i] = pcf.digitalRead(buttonPin[i]);
     pressedState[i] = false;
     lastTime[i] = 0;
@@ -29,11 +29,6 @@ void ButtonManager::begin() {
 
 bool ButtonManager::isInitialized() {
   return initialized;
-}
-
-uint32_t ButtonManager::getModeHoldDuration() {
-  if (modeHeld) return millis() - modePressStart;
-  return 0;
 }
 
 void triggerBuzzer(uint16_t duration) {
@@ -74,23 +69,12 @@ void ButtonManager::update() {
               Serial.println("[BUTTON]: NEXT pressed");
               break;
             case 3:
-              modeHeld = true;
-              modePressStart = now;
-              Serial.println("[BUTTON]: MODE hold started");
+              event = BTN_MODE;
+              Serial.println("[BUTTON]: MODE pressed");
               break;
           }
         } else {
           pressedState[i] = false;
-          if (i == 3) {
-            if (modeHeld) {
-              Serial.println("[BUTTON]: MODE released");
-              modeHeld = false;
-              // If not held long, treat as single press for event (if needed)
-              if (now - modePressStart < 500) {
-                  event = BTN_MODE;
-              }
-            }
-          }
         }
       }
     }

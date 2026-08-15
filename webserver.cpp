@@ -1,6 +1,5 @@
 #include "webserver.h"
 #include "config.h"
-#include "display.h"
 #include "pins.h"
 #include "wifi_manager.h"
 #include "player.h"

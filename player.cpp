@@ -1,7 +1,6 @@
 #include "player.h"
 
 #include "config.h"
-#include "display.h"
 #include "event_queue.h"
 #include "midi.h"
 #include "sdcard.h"
@@ -30,8 +29,6 @@ void Player::begin() {
 
   if (sdcard.getCount() > 0) {
     load();
-  } else {
-    display.show("NO FILE", "NO MIDI");
   }
 }
 
@@ -57,13 +54,11 @@ bool Player::load() {
   File file = sdcard.openCurrent();
   if (!file) {
     loaded = false;
-    display.show("NO FILE", "LOAD FAIL");
     return false;
   }
 
   if (!midi.open(file)) {
     loaded = false;
-    display.show("NO FILE", "LOAD FAIL");
     return false;
   }
 
@@ -73,10 +68,7 @@ bool Player::load() {
   loaded = ok;
 
   if (ok) {
-    display.show(sdcard.getCurrentFile(), "LOADED");
     Serial.printf("[PLAYER]: File loaded: %s\n", sdcard.getCurrentFile());
-  } else {
-    display.show("NO FILE", "LOAD FAIL");
   }
 
   return ok;
@@ -84,7 +76,6 @@ bool Player::load() {
 
 void Player::play() {
   if (sdcard.getCount() == 0) {
-    display.show("NO FILE", "NO MIDI");
     return;
   }
   if (!loaded && !load()) return;
@@ -102,7 +93,6 @@ void Player::play() {
     paused = false;
   }
 
-  display.show(sdcard.getCurrentFile(), "PLAYING");
 }
 
 void Player::stop() {
@@ -114,7 +104,6 @@ void Player::stop() {
   elapsedUS = 0;
   solenoid.allOff();
   eventQueue.clear();
-  display.show(sdcard.getCurrentFile(), "STOPPED");
   Serial.println("[PLAYER]: Stopped");
 }
 
@@ -127,7 +116,6 @@ void Player::pause() {
   playing = false;
   paused = true;
   solenoid.allOff();
-  display.show(sdcard.getCurrentFile(), "PAUSED");
 }
 
 bool Player::isPlaying() {
@@ -158,7 +146,6 @@ void Player::toggleMode() {
   prefs.end();
 
   Serial.printf("[PLAYER]: Mode set to: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
-  display.show(sdcard.getCurrentFile(), autoMode ? "AUTO MODE" : "MANUAL MODE");
 }
 
 bool Player::isAutoMode() {
@@ -207,13 +194,11 @@ void Player::update() {
   if (eventQueue.empty()) {
     if (autoMode) {
       Serial.println("[PLAYER]: Loop: 2s delay");
-      display.show(sdcard.getCurrentFile(), "NEXT IN 2S");
       vTaskDelay(2000 / portTICK_PERIOD_MS);
       nextFile();
       play();
     } else {
       stop();
-      display.show(sdcard.getCurrentFile(), "DONE");
     }
   }
 }

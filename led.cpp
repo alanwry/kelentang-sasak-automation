@@ -4,7 +4,6 @@
 #include "player.h"
 #include "webserver.h"
 #include "sdcard.h"
-#include "display.h"
 #include <WiFi.h>
 
 LedController led;
@@ -61,10 +60,8 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_RUN, LOW);
   }
 
-  // ERR LED: Indicates critical system failures (SD card, Display, etc.)
+  // ERR LED: Indicates critical system failures (SD card, etc.)
   bool sdError = !sdcard.isDetected();
-  bool displayError = !display.isInitialized();
   
-  bool errorState = sdError || displayError;
-  pcf.digitalWrite(PIN_LED_ERR, errorState ? HIGH : LOW);
+  pcf.digitalWrite(PIN_LED_ERR, sdError ? HIGH : LOW);
 }

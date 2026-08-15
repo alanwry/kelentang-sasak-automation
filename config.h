@@ -7,11 +7,7 @@
 
 #define MAX_SOLENOID 24
 
-#define LCD_COL 16
-#define LCD_ROW 2
-
-#define LCD_ADDRESS 0x27
-#define PCF8574_ADDRESS 0x20
+#define PCF8574_ADDRESS 0x21
 
 #define BUTTON_DEBOUNCE 40
 #define WIFI_ENABLE_MS 2000

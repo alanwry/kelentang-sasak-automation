@@ -1,7 +1,6 @@
 #include "config.h"
 #include "pins.h"
 #include "button.h"
-#include "display.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/semphr.h"
@@ -42,14 +41,8 @@ void setup() {
   Serial.println(FW_VERSION);
   Serial.println("===================================");
 
-  Wire.begin(LCD_SDA, LCD_SCL);
+  Wire.begin(I2C_SDA, I2C_SCL);
   button.begin();
-
-  pcf.pinMode(PIN_BUZZER, OUTPUT);
-  pcf.digitalWrite(PIN_BUZZER, LOW);
-
-  display.begin();
-  display.splash();
   wifiManager.begin();
 
   // Mode Selection Logic
@@ -65,20 +58,26 @@ void setup() {
     wifiManager.startAPMinimal();
     
     // In Setup Mode, we stay in setup() and just loop the webserver
+    uint32_t pressStart = 0;
     while(true) {
         button.update();
         
-        // Exit AP Mode: Hold Mode Button for 2 seconds
-        if (button.getModeHoldDuration() >= 2000) {
-            Serial.println("[SYSTEM]: Restarting from AP Mode (requested by button hold)...");
-            
-            // Double beep for exit
-            triggerBuzzer(100);
-            delay(150);
-            triggerBuzzer(100);
-            delay(1000);
-            
-            ESP.restart();
+        bool modePressed = (pcf.digitalRead(PIN_MODE) == LOW);
+        if (modePressed) {
+            if (pressStart == 0) pressStart = millis();
+            if (millis() - pressStart >= 2000) {
+                Serial.println("[SYSTEM]: Restarting from AP Mode (requested by button hold)...");
+                
+                // Double beep for exit
+                triggerBuzzer(100);
+                delay(150);
+                triggerBuzzer(100);
+                delay(1000);
+                
+                ESP.restart();
+            }
+        } else {
+            pressStart = 0;
         }
 
         webServer.update();
@@ -104,75 +103,10 @@ void setup() {
   }
 }
 
-// Global buzzer state for non-blocking pattern
-enum BuzzerState { BUZZER_IDLE, BUZZER_BEEPING, BUZZER_HOLDING };
-BuzzerState bState = BUZZER_IDLE;
-uint32_t bLastChange = 0;
-bool bOn = false;
-
-void updateBuzzerPattern(uint32_t holdDuration) {
-    if (holdDuration < 1000) {
-        bState = BUZZER_IDLE;
-        pcf.digitalWrite(PIN_BUZZER, LOW);
-        return;
-    }
-
-    if (holdDuration >= 5000) {
-        // Final long beep
-        pcf.digitalWrite(PIN_BUZZER, HIGH);
-        return;
-    }
-
-    // Accelerating pattern between 1s and 5s
-    uint32_t elapsed = holdDuration - 1000;
-    uint32_t offTime = 1000 - (elapsed * 950 / 4000); // 1000ms down to 50ms
-    uint32_t onTime = 100; // Increased to 100ms
-    
-    uint32_t now = millis();
-    if (bOn && (now - bLastChange >= onTime)) {
-        bOn = false;
-        bLastChange = now;
-        pcf.digitalWrite(PIN_BUZZER, LOW);
-    } else if (!bOn && (now - bLastChange >= offTime)) {
-        bOn = true;
-        bLastChange = now;
-        pcf.digitalWrite(PIN_BUZZER, HIGH);
-    }
-}
 
 void systemTask(void *pvParameters) {
   for (;;) {
     button.update();
-
-    // Hold 3s to restart with progressive beep
-    uint32_t holdDuration = button.getModeHoldDuration();
-    if (holdDuration >= 3000) {
-        Serial.println("[SYSTEM]: Restarting from Operational Mode...");
-        // Ensure buzzer is on for long beep before restart
-        pcf.digitalWrite(PIN_BUZZER, HIGH);
-        delay(500); 
-        ESP.restart();
-    } else if (holdDuration >= 1000) {
-        // Progressive acceleration pattern:
-        // Fixed ON time: 100ms
-        // Variable OFF time: starts at 1000ms (at 1s), decreases to 50ms (at 3s)
-        uint32_t elapsed = holdDuration - 1000; // 0 to 2000ms
-        // 1000ms to 50ms = 950ms range over 2000ms
-        uint32_t offTime = 1000 - (elapsed * 950 / 2000); 
-        
-        uint32_t onTime = 100;
-        uint32_t cycleTime = onTime + offTime;
-        
-        // Non-blocking timer
-        if (millis() % cycleTime < onTime) {
-             pcf.digitalWrite(PIN_BUZZER, HIGH);
-        } else {
-             pcf.digitalWrite(PIN_BUZZER, LOW);
-        }
-    } else {
-        // Only turn off if not held or not in beep range
-        pcf.digitalWrite(PIN_BUZZER, LOW);
-    }
 
     ButtonID evt = button.getEvent();
     if (evt != BTN_NONE) {
@@ -182,7 +116,6 @@ void systemTask(void *pvParameters) {
     webServer.update();
     wifiManager.update();
     solenoid.update();
-    display.update();
     led.update();
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
