@@ -1,38 +1,50 @@
-# Gamelan SASAK (Arduino ESP32)
+# Kelentang Sasak Automation
 
-Compact implementation for controlling Gamelan-like percussion, now optimized for ESP32 with dual-core multitasking and web-based configuration.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Key Architecture
-- **Dual-Core FreeRTOS**: Uses `xTaskCreatePinnedToCore` to separate tasks:
-  - **Core 1 (`midiTask`)**: Dedicated to high-precision MIDI processing (`player.update()`).
-  - **Core 0 (`systemTask`)**: Dedicated to system maintenance, web server (`webserver.update()`), WiFi management, button inputs, display, and buzzer notifications.
-- **Non-Blocking Buzzer**: Buzzer notifications utilize a non-blocking `timer-based` system to ensure functionality even during file I/O.
-- **Robust WiFi Management**: Implements thread-safe WiFi switching between AP and STA modes to prevent memory panics (`Guru Meditation`).
+Sistem otomasi berbasis **ESP32** untuk instrumen perkusi tradisional **Kelentang Sasak**. Proyek ini memungkinkan pemutaran file MIDI untuk mengendalikan 10 aktuator selenoid secara presisi, menggabungkan kearifan budaya dengan teknologi modern.
 
-## Features
-- **MIDI Playback**: Plays MIDI files from SD card with solenoid support.
-- **Web Interface**: Manage MIDI files, configure actuator timing, solenoid mappings, and WiFi settings via browser.
-- **WiFi Connectivity**: Supports AP and STA modes for easy dashboard access.
-- **Interactive Controls**: Buttons for playback, navigation, and AP mode toggling.
-- **Status Notifications**: Audio feedback via active buzzer for system states (startup, buttons, mode changes, successful saves, firmware updates).
+---
 
-## Hardware
-- ESP32-based controller.
-- PCF8574 I/O expander for buttons/LEDs/buzzer.
-- SD Card module for MIDI storage.
-- Solenoid actuators with driver circuitry.
-- Display (I2C) for status feedback.
+## 🛠️ Tentang Proyek
+Proyek ini dikembangkan secara mandiri dari sisi perangkat keras (*hardware*) hingga perangkat lunak (*software*). Tujuannya adalah menciptakan alat yang mampu memutar musik tradisional secara otomatis, menjembatani teknologi *embedded* dengan seni musik tradisional Sasak.
 
-## Configuration & Usage
-- **WiFi Mode**: Hold the `MODE` button for 2s to switch to AP mode (192.168.4.1), or 5s to switch back to STA mode (if configured).
-- **Web Dashboard**: Access `http://mydashboard.local` when connected to the system's WiFi to upload files, configure actuators, and update firmware.
-- **Buzzer Patterns**:
-  - **Startup**: 1 beep (150ms).
-  - **Buttons**: 1 short beep (50ms).
-  - **AP Mode**: 2 beeps (100ms each).
-  - **Firmware/Wifi Save**: 1 long beep (300ms).
+## ✨ Fitur Utama
+*   **Presisi MIDI:** Memutar file MIDI dari SD Card dengan sinkronisasi 10 aktuator selenoid.
+*   **Multitasking Dual-Core:** Menggunakan FreeRTOS (ESP32) untuk memisahkan tugas pemrosesan MIDI yang kritis dan tugas sistem lainnya agar berjalan lancar tanpa *lag*.
+*   **Web Dashboard:** Antarmuka berbasis web untuk manajemen file MIDI, konfigurasi waktu aktuator, pemetaan selenoid, dan pengaturan WiFi.
+*   **Konektivitas Fleksibel:** Mendukung mode *Access Point* (AP) untuk konfigurasi mandiri dan *Station* (STA) untuk terhubung ke jaringan lokal.
+*   **Sistem Notifikasi:** Audio feedback via *active buzzer* untuk status sistem (startup, input tombol, mode WiFi, dll).
 
-## Contributing & Troubleshooting
-- Ensure solid power supply for actuators (use dedicated rail).
-- If system panics occur during WiFi switching, logs usually indicate potential memory/concurrency issues; tasks are synchronized via mutexes to prevent this.
-- Maintain consistency with `config.h` pin mappings.
+## 🏗️ Arsitektur Sistem
+*   **Core 1 (MIDI Task):** Pemrosesan MIDI *high-precision* untuk *timing* pemukulan instrumen yang tepat.
+*   **Core 0 (System Task):** Menangani Web Server, manajemen WiFi, input tombol, dan notifikasi buzzer.
+
+## 📂 Struktur Repositori
+```text
+/
+├── main/              # Source code (Arduino/ESP32)
+├── hardware/          # Skematik, Layout PCB, & Gerber files
+├── docs/              # Dokumentasi fisik, foto perakitan, & wiring diagram
+└── README.md
+```
+
+## 🔌 Hardware
+Proyek ini dirancang menggunakan:
+*   **Controller:** ESP32
+*   **Aktuator:** 10 Selenoid (dengan driver MOSFET)
+*   **Penyimpanan:** Modul SD Card
+*   **Input/UI:** Tombol fisik & Display I2C
+
+## 🚀 Cara Penggunaan
+1.  **WiFi Mode:** Tahan tombol `MODE` selama 2 detik untuk masuk ke mode AP (IP: `192.168.4.1`), atau 5 detik untuk mode STA.
+2.  **Web Dashboard:** Akses dasbor melalui peramban untuk unggah MIDI, konfigurasi aktuator, dan update *firmware*.
+3.  **Buzzer Feedback:** Memudahkan pemantauan status sistem melalui pola bunyi yang berbeda (Startup, Button press, Mode changes, dll).
+
+## 🤝 Kontribusi
+Proyek ini bersifat *Open Source*. Saya sangat terbuka bagi siapa saja yang ingin mengembangkan sistem ini, baik dari sisi mekanik, elektronik, maupun optimasi kode.
+*   Silakan buat *Pull Request* atau *Issue* jika Anda memiliki ide pengembangan.
+*   Pastikan untuk memeriksa dokumentasi di folder `/hardware` dan `/docs` sebelum melakukan modifikasi pada desain.
+
+## ⚖️ Lisensi
+Proyek ini dilisensikan di bawah [MIT License](LICENSE).
