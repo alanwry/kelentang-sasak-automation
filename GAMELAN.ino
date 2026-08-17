@@ -22,8 +22,20 @@ extern void triggerBuzzer(uint16_t duration);
 QueueHandle_t buttonQueue;
 SemaphoreHandle_t wifiSemaphore;
 
+// Error Monitoring
+volatile uint32_t lastMidiTask = 0;
+volatile uint32_t lastSystemTask = 0;
+
+bool isSystemHang() {
+    uint32_t now = millis();
+    bool midiHang = (now - lastMidiTask > 5000);
+    bool systemHang = (now - lastSystemTask > 5000);
+    return midiHang || systemHang;
+}
+
 void midiTask(void *pvParameters) {
   for (;;) {
+    lastMidiTask = millis(); // Heartbeat
     ButtonID evt;
     if (xQueueReceive(buttonQueue, &evt, 0) == pdPASS) {
       player.handleEvent(evt);
@@ -35,44 +47,52 @@ void midiTask(void *pvParameters) {
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("===================================");
-  Serial.println("GAMELAN SASAK");
-  Serial.println(FW_VERSION);
-  Serial.println("===================================");
+  vTaskDelay(pdMS_TO_TICKS(500));
+  Serial.println("[SYSTEM] Starting...");
 
   Wire.begin(I2C_SDA, I2C_SCL);
+  
+  // Debug PCF8574
+  if (pcf.begin()) {
+    Serial.println("[SYSTEM] PCF8574 connected");
+  } else {
+    Serial.println("[SYSTEM] PCF8574 connection FAILED");
+  }
+
   button.begin();
   wifiManager.begin();
+  Serial.printf("[SYSTEM] WiFi STA: %s\n", wifiManager.isSTAEnabled() ? "ENABLED" : "DISABLED");
 
   // Mode Selection Logic
   if (pcf.digitalRead(PIN_MODE) == LOW) {
-    Serial.println("[SYSTEM]: Entering AP Setup Mode - Operational features disabled");
     
     // Double beep for AP Mode before init
-    delay(500);// clear buzeer
+    vTaskDelay(pdMS_TO_TICKS(500));// clear buzeer
     triggerBuzzer(100);
-    delay(150);
+    vTaskDelay(pdMS_TO_TICKS(150));
     triggerBuzzer(100);
 
     wifiManager.startAPMinimal();
+    
+    // Inisialisasi LED untuk mode AP
+    led.begin();
     
     // In Setup Mode, we stay in setup() and just loop the webserver
     uint32_t pressStart = 0;
     while(true) {
         button.update();
+        led.update(); // Update LED status
         
         bool modePressed = (pcf.digitalRead(PIN_MODE) == LOW);
         if (modePressed) {
             if (pressStart == 0) pressStart = millis();
             if (millis() - pressStart >= 2000) {
-                Serial.println("[SYSTEM]: Restarting from AP Mode (requested by button hold)...");
                 
                 // Double beep for exit
                 triggerBuzzer(100);
-                delay(150);
+                vTaskDelay(pdMS_TO_TICKS(150));
                 triggerBuzzer(100);
-                delay(1000);
+                vTaskDelay(pdMS_TO_TICKS(1000));
                 
                 ESP.restart();
             }
@@ -81,18 +101,27 @@ void setup() {
         }
 
         webServer.update();
-        delay(10);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
   } else {
-    Serial.println("[SYSTEM]: Entering Operational Mode");
     if (wifiManager.isSTAEnabled())
       wifiManager.startSTAOnly();
 
     led.begin();
-    sdcard.begin();
+    
+    // Debug SD Card
+    if (sdcard.begin()) {
+        Serial.println("[SYSTEM] SD Card module initialized");
+    } else {
+        Serial.println("[SYSTEM] SD Card module failed to init");
+    }
+    Serial.printf("[SYSTEM] SD Card physical: %s\n", (digitalRead(PIN_SD_DET) == LOW) ? "DETECTED" : "NOT DETECTED");
+
     solenoid.begin();
     sdcard.scan();
     player.begin();
+    Serial.printf("[SYSTEM] Play Mode: %s\n", player.isAutoMode() ? "AUTO (LOOP)" : "MANUAL");
+    Serial.printf("[SYSTEM] Actuator Duration: %d ms\n", player.getSolenoidTime());
 
     triggerBuzzer(400);
 
@@ -106,7 +135,9 @@ void setup() {
 
 void systemTask(void *pvParameters) {
   for (;;) {
+    lastSystemTask = millis(); // Heartbeat
     button.update();
+    sdcard.update();
 
     ButtonID evt = button.getEvent();
     if (evt != BTN_NONE) {

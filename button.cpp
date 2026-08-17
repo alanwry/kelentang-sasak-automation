@@ -11,12 +11,10 @@ static const uint8_t buttonPin[4] = { PIN_PREV, PIN_PLAY_PAUSE, PIN_NEXT, PIN_MO
 void ButtonManager::begin() {
   // CRITICAL: Ensure PCF8574 I2C communication is established during startup
   if (!pcf.begin(PCF8574_ADDRESS, &Wire)) {
-    Serial.println("[SYSTEM]: Error: PCF8574 initialization failed!");
     initialized = false;
     return;
   }
   
-  Serial.println("[SYSTEM]: PCF8574 initialized.");
   initialized = true;
 
   for (int i = 0; i < 4; i++) {
@@ -52,27 +50,27 @@ void ButtonManager::update() {
         lastTime[i] = now;
 
         if (state == LOW) {
-          pressedState[i] = true;
-          triggerBuzzer(50);
+        pressedState[i] = true;
+        triggerBuzzer(50);
 
-          switch (i) {
-            case 0:
-              event = BTN_PREV;
-              Serial.println("[BUTTON]: PREVIOUS pressed");
-              break;
-            case 1:
-              event = BTN_START;
-              Serial.println("[BUTTON]: PLAY/PAUSE pressed");
-              break;
-            case 2:
-              event = BTN_NEXT;
-              Serial.println("[BUTTON]: NEXT pressed");
-              break;
-            case 3:
-              event = BTN_MODE;
-              Serial.println("[BUTTON]: MODE pressed");
-              break;
-          }
+        switch (i) {
+          case 0:
+            event = BTN_PREV;
+            Serial.println("[BUTTON] PREV pressed");
+            break;
+          case 1:
+            event = BTN_START;
+            Serial.println("[BUTTON] START/PAUSE pressed");
+            break;
+          case 2:
+            event = BTN_NEXT;
+            Serial.println("[BUTTON] NEXT pressed");
+            break;
+          case 3:
+            event = BTN_MODE;
+            Serial.println("[BUTTON] MODE pressed");
+            break;
+        }
         } else {
           pressedState[i] = false;
         }

@@ -51,6 +51,9 @@ void SolenoidManager::begin() {
   count = 0;
   if (!loadConfig()) {
     Serial.println("[SOLENOID] No config file, using defaults");
+    configError = true;
+  } else {
+    configError = false;
   }
 }
 

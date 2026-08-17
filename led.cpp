@@ -4,7 +4,10 @@
 #include "player.h"
 #include "webserver.h"
 #include "sdcard.h"
+#include "solenoid.h"
 #include <WiFi.h>
+
+extern bool isSystemHang();
 
 LedController led;
 
@@ -60,8 +63,13 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_RUN, LOW);
   }
 
-  // ERR LED: Indicates critical system failures (SD card, etc.)
+  // ERR LED: Indicates critical system failures
   bool sdError = !sdcard.isDetected();
+  bool playerError = player.hasLoadingError();
+  bool solenoidError = solenoid.hasConfigError();
+  bool systemHang = isSystemHang();
   
-  pcf.digitalWrite(PIN_LED_ERR, sdError ? HIGH : LOW);
+  bool systemError = sdError || playerError || solenoidError || systemHang; 
+  
+  pcf.digitalWrite(PIN_LED_ERR, systemError ? HIGH : LOW);
 }

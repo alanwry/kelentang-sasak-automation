@@ -4,6 +4,8 @@
 #include "webserver.h"
 #include <ESPmDNS.h>
 #include <WiFi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 extern void triggerBuzzer(uint16_t duration);
 
@@ -18,13 +20,13 @@ void WiFiManager::update() {
   if (isConnecting) {
     if (WiFi.status() == WL_CONNECTED) {
       isConnecting = false;
+      Serial.println("[WIFI] STA Connected successfully");
       // webServer.begin(); // Removed: handled by startSTAOnly
-      Serial.println("[SYSTEM]: STA successfully connected");
     } else if (millis() - connectionStart > 15000) { // 15s timeout
       isConnecting = false;
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      Serial.println("[SYSTEM]: STA failed to connect");
+      Serial.println("[WIFI] STA Connection failed (timeout)");
     }
   }
 }
@@ -36,8 +38,6 @@ void WiFiManager::loadFromPrefs() {
     password = prefs.getString("password", "");
     enableSTA = prefs.getBool("enableSTA", false);
     prefs.end();
-    Serial.printf("[SYSTEM]: WiFi load setting SSID: '%s', STA Enabled: %s\n",
-                  ssid.c_str(), enableSTA ? "ON" : "OFF");
   } else {
     // If failed, it might not exist. Try opening in write mode to initialize
     // it.
@@ -60,9 +60,6 @@ void WiFiManager::saveSettings(String newSsid, String newPassword,
   password = newPassword;
   enableSTA = newEnableSTA;
 
-  Serial.printf("[WIFI]: Saving to Preferences - SSID: '%s', Enable: %s\n",
-                ssid.c_str(), enableSTA ? "ON" : "OFF");
-
   if (prefs.begin("gamelan_wifi", false)) {
     prefs.putString("ssid", ssid);
     prefs.putString("password", password);
@@ -71,27 +68,22 @@ void WiFiManager::saveSettings(String newSsid, String newPassword,
     
     // Single longer beep for save confirmation
     triggerBuzzer(400);
-    delay(400); // Give the buzzer time to finish before potentially changing state
+    vTaskDelay(pdMS_TO_TICKS(400)); // Give the buzzer time to finish before potentially changing state
     
     // Only take immediate action if we are in STA operational mode
     if (WiFi.getMode() == WIFI_STA) {
         if (!enableSTA) {
-            Serial.println("[WIFI]: STA disabled, disconnecting...");
             WiFi.disconnect(true);
             WiFi.mode(WIFI_OFF);
         } else if (oldEnableSTA != enableSTA || oldSsid != ssid || oldPassword != password) {
             // Restart only if STA was just enabled or credentials changed
-            Serial.println("[WIFI]: STA settings updated, restarting...");
             ESP.restart();
         }
     } else if (WiFi.getMode() == WIFI_AP && enableSTA && !oldEnableSTA) {
         // If in AP mode and user enables STA, we might want to restart to apply
-        Serial.println("[WIFI]: STA enabled in AP mode, restarting to apply...");
         ESP.restart();
     }
-    Serial.println("[WIFI]: Save complete");
   } else {
-    Serial.println("[WIFI]: Error: Failed to open Preferences for writing");
   }
 }
 
@@ -104,7 +96,6 @@ void WiFiManager::getSettings(String &outSsid, String &outPassword,
 
 bool WiFiManager::isSTAEnabled() { return enableSTA; }
 void WiFiManager::stopAll() {
-  Serial.println("[WIFI]: Cleaning up WiFi stack...");
 
   if (webServer.isActive()) {
     webServer.stop();
@@ -115,8 +106,7 @@ void WiFiManager::stopAll() {
   WiFi.mode(WIFI_OFF);
   isConnecting = false;
 
-  delay(100);
-  Serial.println("[WIFI]: WiFi stack cleaned.");
+  vTaskDelay(pdMS_TO_TICKS(100));
 }
 
 void WiFiManager::startAPMinimal() {
@@ -130,7 +120,6 @@ void WiFiManager::startAPMinimal() {
         WiFi.softAPConfig(local_IP, gateway, subnet);
 
         if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 4)) {
-          Serial.println("[WIFI]: AP Minimal Mode Started");
           webServer.beginAPMinimal(); // Call the minimal webserver dashboard
         }
         vTaskDelete(NULL);
@@ -141,18 +130,21 @@ void WiFiManager::startAPMinimal() {
 void WiFiManager::startSTAOnly() {
   if (ssid.length() == 0) return;
   stopAll();
+  Serial.println("[WIFI] Starting STA mode...");
   xTaskCreatePinnedToCore(
       [](void *parameter) {
         WiFi.mode(WIFI_STA);
         WiFi.setHostname("mydashboard");
         WiFi.begin(wifiManager.ssid.c_str(), wifiManager.password.c_str());
-        Serial.println("[WIFI]: STA Normal Mode Started");
         uint32_t start = millis();
         while (WiFi.status() != WL_CONNECTED && (millis() - start < 15000)) {
           vTaskDelay(pdMS_TO_TICKS(500));
         }
         if (WiFi.status() == WL_CONNECTED) {
+          Serial.println("[WIFI] STA Connected");
           webServer.beginSTAFull(); // Call the full operational webserver dashboard
+        } else {
+          Serial.println("[WIFI] STA Connection FAILED");
         }
         vTaskDelete(NULL);
       },

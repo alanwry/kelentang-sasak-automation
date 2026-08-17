@@ -18,7 +18,6 @@ bool SDCardManager::begin() {
   sdInserted = (digitalRead(PIN_SD_DET) == LOW);
 
   if (!sdInserted) {
-    Serial.println("[SYSTEM]: Error: SD card not detected");
     detected = false;
     return false;
   }
@@ -34,14 +33,12 @@ bool SDCardManager::begin() {
     ok = SD.begin(PIN_SD_CS, SPI, 4000000);
     if (ok)
       break;
-    delay(500);
+    vTaskDelay(pdMS_TO_TICKS(500));
   }
 
   if (!ok) {
-    Serial.println("[SYSTEM]: Error: SD card module failed to connect (SPI)");
     detected = false;
   } else {
-    Serial.println("[SYSTEM]: SD card module connected (SPI)");
     detected = true;
   }
   return ok;
@@ -51,15 +48,16 @@ void SDCardManager::update() {
   bool currentDetected = (digitalRead(PIN_SD_DET) == LOW);
   if (currentDetected != sdInserted) {
     sdInserted = currentDetected;
+    Serial.printf("[SDCARD] Physical status changed: %s\n", sdInserted ? "INSERTED" : "REMOVED");
     if (sdInserted) {
       if (sdcard.begin()) {
-        Serial.println("[SYSTEM]: SD card detected (pin)");
         detected = true;
+        Serial.println("[SDCARD] Successfully re-initialized");
       } else {
         detected = false;
+        Serial.println("[SDCARD] Failed to re-initialize");
       }
     } else {
-      Serial.println("[SYSTEM]: SD card removed (pin)");
       player.stop();
       detected = false;
     }
@@ -164,8 +162,6 @@ File SDCardManager::openFile(const char *path, const char *mode) {
   File file;
   if (xSemaphoreTake(mutex, portMAX_DELAY)) {
     file = SD.open(path, mode);
-    if (file && strcmp(mode, FILE_WRITE) == 0)
-      Serial.printf("[SDCARD]: File uploaded: %s\n", path);
     xSemaphoreGive(mutex);
   }
   return file;
@@ -175,10 +171,6 @@ bool SDCardManager::deleteFile(const char *path) {
   bool ok = false;
   if (xSemaphoreTake(mutex, portMAX_DELAY)) {
     ok = SD.remove(path);
-    if (ok)
-      Serial.printf("[SDCARD]: File deleted: %s\n", path);
-    else
-      Serial.printf("[SDCARD]: Error: Failed to delete: %s\n", path);
     xSemaphoreGive(mutex);
   }
   return ok;

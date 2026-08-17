@@ -192,7 +192,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <div class="row">
       <label for="otaBinInput" style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="document.getElementById('otaBinInput').click()">Select .bin File</label>
       <input type="file" id="otaBinInput" accept=".bin" style="display:none;" onchange="document.querySelector('label[for=\'otaBinInput\']').innerText = this.files[0].name" />
-      <button onclick="uploadFile()" class="primary upload-btn">Upload</button>
+      <button onclick="uploadOta()" class="primary upload-btn">Upload</button>
       </div>
   <div style="font-size: 0.8rem; color: var(--text-muted);">
       <span>Last Update: {{LAST_UPDATE}}</span>
@@ -349,7 +349,7 @@ async function uploadOta() {
 
 esp_err_t api_restart_handler(httpd_req_t *req) {
     httpd_resp_send(req, "OK", 2);
-    delay(500);
+    vTaskDelay(pdMS_TO_TICKS(500));
     ESP.restart();
     return ESP_OK;
 }
@@ -375,7 +375,7 @@ esp_err_t upload_handler(httpd_req_t *req) {
         int headerEnd = chunk.indexOf("\r\n\r\n");
         if (headerEnd >= 0) {
           headersParsed = true; header_offset = headerEnd + 4;
-          if (filename.length() > 0 && SD.exists(filename.c_str())) { Serial.printf("[WEBSERVER]: File exists, skip: %s\n", filename.c_str()); return httpd_resp_send(req, "SKIP", 4); }
+          if (filename.length() > 0 && SD.exists(filename.c_str())) { return httpd_resp_send(req, "SKIP", 4); }
           if (filename.length() > 0 && (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
             file = sdcard.openFile(filename.c_str(), FILE_WRITE); if (!file) return ESP_FAIL;
             if (recv_len > header_offset) file.write((uint8_t *)(buf + header_offset), recv_len - header_offset);
@@ -384,7 +384,7 @@ esp_err_t upload_handler(httpd_req_t *req) {
       } else if (file) file.write((uint8_t *)buf, recv_len);
     }
   }
-  if (file) { file.close(); Serial.printf("[WEBSERVER]: File uploaded: %s\n", filename.c_str()); needsScan = true; return httpd_resp_send(req, "OK", 2); }
+  if (file) { file.close(); needsScan = true; return httpd_resp_send(req, "OK", 2); }
   return ESP_FAIL;
 }
 
@@ -527,7 +527,7 @@ esp_err_t api_files_handler(httpd_req_t *req) {
       char name[128];
       if (httpd_query_key_value(buf, "name", name, sizeof(name)) == ESP_OK) {
         String decodedName = String(name); decodedName.replace("%20", " ");
-        if (sdcard.deleteFile(("/" + decodedName).c_str())) { Serial.printf("[WEBSERVER]: File deleted: %s\n", name); needsScan = true; return httpd_resp_send(req, "OK", 2); }
+        if (sdcard.deleteFile(("/" + decodedName).c_str())) { needsScan = true; return httpd_resp_send(req, "OK", 2); }
       }
     }
     return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Delete Failed");
@@ -545,12 +545,11 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
     char buf[512]; memset(buf, 0, sizeof(buf));
     int ret = httpd_req_recv(req, buf, sizeof(buf) - 1);
     if (ret > 0) {
-      String data(buf); Serial.printf("[WEBSERVER]: Received WiFi config: %s\n", data.c_str());
+      String data(buf);
       String ssid = "", pass = ""; bool enable = false;
       int sIdx = data.indexOf("\"ssid\":\""); if (sIdx != -1) { int start = sIdx + 8; int end = data.indexOf("\"", start); if (end != -1) ssid = data.substring(start, end); }
       int pIdx = data.indexOf("\"pass\":\""); if (pIdx != -1) { int start = pIdx + 8; int end = data.indexOf("\"", start); if (end != -1) pass = data.substring(start, end); }
       int eIdx = data.indexOf("\"enable\":"); if (eIdx != -1) { int colonIdx = data.indexOf(":", eIdx); if (colonIdx != -1) { String val = data.substring(colonIdx + 1); val.trim(); if (val.startsWith("true")) enable = true; else if (val.startsWith("false")) enable = false; } }
-      Serial.printf("[WEBSERVER]: Parsed WiFi - SSID: '%s', Enable: %s\n", ssid.c_str(), enable ? "ON" : "OFF");
       wifiManager.saveSettings(ssid, pass, enable);
       httpd_resp_send(req, "OK", 2);
     }
@@ -591,7 +590,6 @@ void WebServerManager::beginAPMinimal() {
   httpd_register_uri_handler(server, &restart_uri);
 
   active = true;
-  Serial.println("[SYSTEM]: Webserver started (AP Minimal)");
 }
 
 void WebServerManager::beginSTAFull() {
@@ -629,7 +627,15 @@ void WebServerManager::beginSTAFull() {
           if (Update.write((uint8_t*)buf, ret) != ret) { free(buf); Update.end(); return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed"); }
       }
       free(buf);
-      if (Update.end()) { delay(1000); ESP.restart(); return httpd_resp_send(req, "OK", 2); }
+      if (Update.end()) { 
+          vTaskDelay(pdMS_TO_TICKS(1000)); 
+          Preferences prefs; prefs.begin("ota", false);
+          // Menggunakan waktu sistem jika sudah sinkron, atau format sederhana
+          prefs.putString("last", "Updated"); // TODO: Ganti dengan tanggal jika NTP jalan
+          prefs.end();
+          ESP.restart(); 
+          return httpd_resp_send(req, "OK", 2); 
+      }
       else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
   }, nullptr};
 
@@ -649,7 +655,6 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &ota_uri);
 
   active = true;
-  Serial.println("[SYSTEM]: Webserver started (STA Full)");
 }
 
 void WebServerManager::update() {
@@ -659,7 +664,6 @@ void WebServerManager::update() {
 
 void WebServerManager::stop() {
   if (!active) return;
-  Serial.println("[WEBSERVER]: Webserver stopped");
   if (server) { httpd_stop(server); server = nullptr; }
   MDNS.end();
   active = false;

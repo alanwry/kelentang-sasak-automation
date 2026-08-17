@@ -39,11 +39,13 @@ public:
   void removeSolenoid(uint8_t pin);
   uint8_t getCount() const;
   Solenoid *getItems();
+  bool hasConfigError() { return configError; }
 
 private:
   Solenoid item[MAX_SOLENOID];
   uint8_t count;
   uint32_t lastTestTime = 0; // Tambahkan ini
+  bool configError = false; // NEW
 };
 
 extern SolenoidManager solenoid;

@@ -24,9 +24,6 @@ void Player::begin() {
   elapsedUS = 0;
   eventQueue.clear();
 
-  Serial.printf("[PLAYER]: Init mode: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
-  Serial.printf("[PLAYER]: Solenoid Time init: %d ms\n", solenoidTime);
-
   if (sdcard.getCount() > 0) {
     load();
   }
@@ -41,24 +38,29 @@ void Player::setSolenoidTime(uint16_t time) {
   prefs.begin("gamelan", false);
   prefs.putUShort("solenoidTime", time);
   prefs.end();
-  Serial.printf("[PLAYER]: Solenoid Time saved: %d ms\n", solenoidTime);
 }
 
 bool Player::load() {
   if (sdcard.getCount() == 0) {
     loaded = false;
     eventQueue.clear();
+    loadingError = true; // Error
+    Serial.println("[PLAYER] Load failed: No files on SD");
     return false;
   }
 
   File file = sdcard.openCurrent();
   if (!file) {
     loaded = false;
+    loadingError = true; // Error
+    Serial.println("[PLAYER] Load failed: Could not open file");
     return false;
   }
 
   if (!midi.open(file)) {
     loaded = false;
+    loadingError = true; // Error
+    Serial.println("[PLAYER] Load failed: MIDI open error");
     return false;
   }
 
@@ -66,9 +68,12 @@ bool Player::load() {
   bool ok = midi.parse();
   midi.close();
   loaded = ok;
-
+  loadingError = !ok; // Set error jika tidak ok
+  
   if (ok) {
-    Serial.printf("[PLAYER]: File loaded: %s\n", sdcard.getCurrentFile());
+      Serial.printf("[PLAYER] File loaded: %s\n", sdcard.getCurrentFile());
+  } else {
+      Serial.println("[PLAYER] Load failed: MIDI parse error");
   }
 
   return ok;
@@ -80,17 +85,17 @@ void Player::play() {
   }
   if (!loaded && !load()) return;
 
-  Serial.printf("[PLAYER]: %s %s\n", paused ? "Resuming" : "Starting", sdcard.getCurrentFile());
-
   playing = true;
   if (paused) {
     // Resume: adjust startUS to resume from last position
     startUS = esp_timer_get_time() - elapsedUS;
     paused = false;
+    Serial.println("[PLAYER] Resumed");
   } else {
     elapsedUS = 0;
     startUS = esp_timer_get_time();
     paused = false;
+    Serial.println("[PLAYER] Started playing");
   }
 
 }
@@ -104,7 +109,7 @@ void Player::stop() {
   elapsedUS = 0;
   solenoid.allOff();
   eventQueue.clear();
-  Serial.println("[PLAYER]: Stopped");
+  Serial.println("[PLAYER] Stopped");
 }
 
 void Player::pause() {
@@ -116,6 +121,34 @@ void Player::pause() {
   playing = false;
   paused = true;
   solenoid.allOff();
+  Serial.println("[PLAYER] Paused");
+}
+
+void Player::nextFile() {
+  stop();
+  sdcard.next();
+  load();
+  Serial.printf("[PLAYER] Next file: %s\n", sdcard.getCurrentFile());
+}
+
+void Player::prevFile() {
+  stop();
+  sdcard.prev();
+  load();
+  Serial.printf("[PLAYER] Prev file: %s\n", sdcard.getCurrentFile());
+}
+
+void Player::toggleMode() {
+  autoMode = !autoMode;
+  Serial.printf("[PLAYER] Mode changed to: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
+
+  prefs.begin("gamelan", false);
+  prefs.putBool("autoMode", autoMode);
+  prefs.end();
+}
+
+bool Player::isAutoMode() {
+  return autoMode;
 }
 
 bool Player::isPlaying() {
@@ -126,46 +159,24 @@ bool Player::isPaused() {
   return paused;
 }
 
-void Player::nextFile() {
-  stop();
-  sdcard.next();
-  load();
-}
-
-void Player::prevFile() {
-  stop();
-  sdcard.prev();
-  load();
-}
-
-void Player::toggleMode() {
-  autoMode = !autoMode;
-
-  prefs.begin("gamelan", false);
-  prefs.putBool("autoMode", autoMode);
-  prefs.end();
-
-  Serial.printf("[PLAYER]: Mode set to: %s\n", autoMode ? "AUTO (LOOP)" : "MANUAL");
-}
-
-bool Player::isAutoMode() {
-  return autoMode;
-}
-
 void Player::handleEvent(ButtonID evt) {
   switch (evt) {
     case BTN_START:
+      Serial.println("[BUTTON] START/PAUSE pressed");
       if (playing) pause();
       else if (paused) play();
       else play();
       break;
     case BTN_NEXT:
+      Serial.println("[BUTTON] NEXT pressed");
       nextFile();
       break;
     case BTN_PREV:
+      Serial.println("[BUTTON] PREV pressed");
       prevFile();
       break;
     case BTN_MODE:
+      Serial.println("[BUTTON] MODE pressed");
       toggleMode();
       break;
     default: break;
@@ -193,13 +204,13 @@ void Player::update() {
 
   if (eventQueue.empty()) {
     if (autoMode) {
-      Serial.println("[PLAYER]: Loop: 2s delay");
+      Serial.println("[PLAYER] File finished, auto-playing next");
       vTaskDelay(2000 / portTICK_PERIOD_MS);
       nextFile();
       play();
     } else {
+      Serial.println("[PLAYER] File finished, stopped");
       stop();
     }
   }
 }
-
