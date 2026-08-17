@@ -31,4 +31,6 @@
 #define PIN_LED_RUN 6
 #define PIN_LED_ERR 7
 
+inline constexpr uint8_t ALLOWED_PINS[] = {1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 35, 36, 37, 38, 39, 40, 41, 42, 47, 48};
+
 #endif

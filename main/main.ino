@@ -47,8 +47,8 @@ void midiTask(void *pvParameters) {
 
 void setup() {
   Serial.begin(115200);
-  vTaskDelay(pdMS_TO_TICKS(500));
-  Serial.println("[SYSTEM] Starting...");
+  // Wait longer for Native USB CDC connection
+  vTaskDelay(pdMS_TO_TICKS(2000));
 
   Wire.begin(I2C_SDA, I2C_SCL);
   

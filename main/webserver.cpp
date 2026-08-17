@@ -206,14 +206,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 &copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat
 </footer>
 <script>
-const noteMap = {
-    "c0": 12, "c#0": 13, "d0": 14, "d#0": 15, "e0": 16, "f0": 17, "f#0": 18, "g0": 19, "g#0": 20, "a0": 21, "a#0": 22, "b0": 23,
-    "c1": 24, "c#1": 25, "d1": 26, "d#1": 27, "e1": 28, "f1": 29, "f#1": 30, "g1": 31, "g#1": 32, "a1": 33, "a#1": 34, "b1": 35,
-    "c2": 36, "c#2": 37, "d2": 38, "d#2": 39, "e2": 40, "f2": 41, "f#2": 42, "g2": 43, "g#2": 44, "a2": 45, "a#2": 46, "b2": 47,
-    "c3": 48, "c#3": 49, "d3": 50, "d#3": 51, "e3": 52, "f3": 53, "f#3": 54, "g3": 55, "g#3": 56, "a3": 57, "a#3": 58, "b3": 59,
-    "c4": 60, "c#4": 61, "d4": 62, "d#4": 63, "e4": 64, "f4": 65, "f#4": 66, "g4": 67, "g#4": 68, "a4": 69, "a#4": 70, "b4": 71,
-    "c5": 72, "c#5": 73, "d5": 74, "d#5": 75, "e5": 76, "f5": 77, "f#5": 78, "g5": 79, "g#5": 80, "a5": 81, "a#5": 82, "b5": 83
-};
+const noteMap = {{NOTE_MAP}};
+const allowedPins = {{ALLOWED_PINS}};
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sNote').addEventListener('input', (e) => {
         const noteInput = e.target.value.toLowerCase().trim();
@@ -315,7 +309,6 @@ async function uploadOta() {
   }
   async function addSolenoid() {
     const pin = parseInt(document.getElementById('sPin').value); let note = document.getElementById('sNote').value; const midi = parseInt(document.getElementById('sMidi').value);
-    const allowedPins = [1, 2, 3, 4, 5, 6, 7, 15, 16, 17, 18, 19, 20, 21, 35, 36, 37, 38, 39, 40, 41, 42, 47, 48];
     
     if(!pin || !midi) { alert('GPIO and MIDI Note Number are required!'); return; }
     if(!allowedPins.includes(pin)) { alert('GPIO not valid'); return; }
@@ -347,12 +340,6 @@ async function uploadOta() {
 </html>
 )rawliteral";
 
-esp_err_t api_restart_handler(httpd_req_t *req) {
-    httpd_resp_send(req, "OK", 2);
-    vTaskDelay(pdMS_TO_TICKS(500));
-    ESP.restart();
-    return ESP_OK;
-}
 
 esp_err_t root_handler(httpd_req_t *req) {
   const char* page = (WiFi.getMode() == WIFI_AP) ? htmlPageAP : htmlPage;
@@ -361,6 +348,16 @@ esp_err_t root_handler(httpd_req_t *req) {
   Preferences prefs; prefs.begin("ota", true);
   output.replace("{{LAST_UPDATE}}", prefs.getString("last", "-"));
   prefs.end();
+  output.replace("{{NOTE_MAP}}", NOTE_MAP_JS);
+
+  String pinsJs = "[";
+  for (size_t i = 0; i < sizeof(ALLOWED_PINS) / sizeof(ALLOWED_PINS[0]); i++) {
+    pinsJs += String(ALLOWED_PINS[i]);
+    if (i < (sizeof(ALLOWED_PINS) / sizeof(ALLOWED_PINS[0])) - 1) pinsJs += ", ";
+  }
+  pinsJs += "]";
+  output.replace("{{ALLOWED_PINS}}", pinsJs);
+
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, output.c_str(), HTTPD_RESP_USE_STRLEN);
 }
@@ -582,18 +579,20 @@ void WebServerManager::beginAPMinimal() {
   httpd_uri_t root_uri = {"/", HTTP_GET, root_handler, nullptr};
   httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
   httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler, nullptr};
-  httpd_uri_t restart_uri = {"/api/restart", HTTP_POST, api_restart_handler, nullptr};
 
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &wifi_get_uri);
   httpd_register_uri_handler(server, &wifi_post_uri);
-  httpd_register_uri_handler(server, &restart_uri);
 
   active = true;
 }
 
 void WebServerManager::beginSTAFull() {
   if (active) return;
+  
+  // Tunggu sejenak untuk memastikan WiFi benar-benar terhubung
+  vTaskDelay(pdMS_TO_TICKS(2000));
+  
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
   
   if (MDNS.begin("mydashboard")) { 
