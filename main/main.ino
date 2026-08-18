@@ -12,11 +12,9 @@
 #include "solenoid.h"
 #include "webserver.h"
 #include "wifi_manager.h"
-#include <Adafruit_PCF8574.h>
 #include <WiFi.h>
 #include <Wire.h>
 
-extern Adafruit_PCF8574 pcf;
 extern void triggerBuzzer(uint16_t duration);
 
 QueueHandle_t buttonQueue;
@@ -51,13 +49,6 @@ void setup() {
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   Wire.begin(I2C_SDA, I2C_SCL);
-  
-  // Debug PCF8574
-  if (pcf.begin()) {
-    Serial.println("[SYSTEM] PCF8574 connected");
-  } else {
-    Serial.println("[SYSTEM] PCF8574 connection FAILED");
-  }
 
   button.begin();
   wifiManager.begin();

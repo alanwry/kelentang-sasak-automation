@@ -142,6 +142,7 @@ void WiFiManager::startSTAOnly() {
         }
         if (WiFi.status() == WL_CONNECTED) {
           Serial.println("[WIFI] STA Connected");
+          Serial.print("[WIFI] IP Address: "); Serial.println(WiFi.localIP());
           webServer.beginSTAFull(); // Call the full operational webserver dashboard
         } else {
           Serial.println("[WIFI] STA Connection FAILED");

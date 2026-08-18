@@ -56,19 +56,15 @@ void ButtonManager::update() {
         switch (i) {
           case 0:
             event = BTN_PREV;
-            Serial.println("[BUTTON] PREV pressed");
             break;
           case 1:
             event = BTN_START;
-            Serial.println("[BUTTON] START/PAUSE pressed");
             break;
           case 2:
             event = BTN_NEXT;
-            Serial.println("[BUTTON] NEXT pressed");
             break;
           case 3:
             event = BTN_MODE;
-            Serial.println("[BUTTON] MODE pressed");
             break;
         }
         } else {
