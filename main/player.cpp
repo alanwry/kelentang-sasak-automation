@@ -78,50 +78,34 @@ bool Player::load() {
 
   return ok;
 }
-
 void Player::play() {
-  if (sdcard.getCount() == 0) {
-    return;
-  }
+  if (sdcard.getCount() == 0) return;
   if (!loaded && !load()) return;
 
-  playing = true;
+  uint64_t now = esp_timer_get_time();
+
   if (paused) {
-    // Resume: adjust startUS to resume from last position
-    startUS = esp_timer_get_time() - elapsedUS;
+    startUS = now; 
     paused = false;
-    Serial.println("[PLAYER] Resumed");
-  } else {
+    playing = true;
+  } else if (!playing) {
     elapsedUS = 0;
-    startUS = esp_timer_get_time();
+    startUS = now;
+    playing = true;
     paused = false;
-    Serial.println("[PLAYER] Started playing");
   }
-
-}
-
-void Player::stop() {
-  if (!playing && !paused) return;
-
-  playing = false;
-  paused = false;
-  loaded = false;
-  elapsedUS = 0;
-  solenoid.allOff();
-  eventQueue.clear();
-  Serial.println("[PLAYER] Stopped");
 }
 
 void Player::pause() {
   if (!playing) return;
 
-  // Save current position
-  elapsedUS += (esp_timer_get_time() - startUS);
+  uint64_t now = esp_timer_get_time();
+
+  elapsedUS += (now - startUS);
 
   playing = false;
   paused = true;
   solenoid.allOff();
-  Serial.println("[PLAYER] Paused");
 }
 
 void Player::nextFile() {
@@ -147,6 +131,18 @@ void Player::toggleMode() {
   prefs.end();
 }
 
+void Player::stop() {
+  if (!playing && !paused) return;
+
+  playing = false;
+  paused = false;
+  loaded = false;
+  elapsedUS = 0;
+  solenoid.allOff();
+  eventQueue.clear();
+  Serial.println("[PLAYER] Stopped");
+}
+
 bool Player::isAutoMode() {
   return autoMode;
 }
@@ -157,6 +153,19 @@ bool Player::isPlaying() {
 
 bool Player::isPaused() {
   return paused;
+}
+
+void Player::setTotalDurationUS(uint64_t duration) {
+    totalDurationUS = duration;
+}
+
+uint64_t Player::getDurationUS() {
+    return totalDurationUS;
+}
+
+uint64_t Player::getElapsedUS() {
+    if (playing) return elapsedUS + (esp_timer_get_time() - startUS);
+    return elapsedUS;
 }
 
 void Player::handleEvent(ButtonID evt) {
@@ -185,6 +194,8 @@ void Player::handleEvent(ButtonID evt) {
 
 void Player::update() {
   if (!playing) return;
+  // Serial.printf("[PLAYER] Update loop: elapsed=%llu\n", elapsedUS + (esp_timer_get_time() - startUS));
+  
   if (sdcard.getCount() == 0) {
     stop();
     return;

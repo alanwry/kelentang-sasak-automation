@@ -50,3 +50,35 @@ void EventQueue::clear() {
 bool EventQueue::empty() const {
   return count == 0;
 }
+
+void EventQueue::sort() {
+  if (count <= 1) return;
+
+  MidiEvent temp[MAX_EVENTS];
+  uint8_t current = head;
+  for (uint8_t i = 0; i < count; i++) {
+    temp[i] = buffer[current];
+    current = (current + 1) % MAX_EVENTS;
+  }
+
+  // Insertion sort (ascending based on timeUS)
+  for (uint8_t i = 1; i < count; i++) {
+    MidiEvent key = temp[i];
+    int16_t j = i - 1;
+    while (j >= 0 && temp[j].timeUS > key.timeUS) {
+      temp[j + 1] = temp[j];
+      j--;
+    }
+    temp[j + 1] = key;
+  }
+
+  for (uint8_t i = 0; i < count; i++) {
+    buffer[i] = temp[i];
+  }
+
+  head = 0;
+  tail = count;
+  if (tail >= MAX_EVENTS) tail = 0;
+
+  Serial.printf("[QUEUE] Sorted %d events\n", count);
+}

@@ -21,6 +21,7 @@ public:
   void push(const MidiEvent &event);
   void clear();
   bool empty() const;
+  void sort();
 
 private:
   static constexpr uint8_t MAX_EVENTS = 128;

@@ -25,15 +25,15 @@ volatile uint32_t lastMidiTask = 0;
 volatile uint32_t lastSystemTask = 0;
 
 bool isSystemHang() {
-    uint32_t now = millis();
-    bool midiHang = (now - lastMidiTask > 5000);
-    bool systemHang = (now - lastSystemTask > 5000);
-    return midiHang || systemHang;
+  uint32_t now = millis();
+  bool midiHang = (now - lastMidiTask > 5000);
+  bool systemHang = (now - lastSystemTask > 5000);
+  return midiHang || systemHang;
 }
 
 void midiTask(void *pvParameters) {
   for (;;) {
-    lastMidiTask = millis(); // Heartbeat
+    lastMidiTask = millis();  // Heartbeat
     ButtonID evt;
     if (xQueueReceive(buttonQueue, &evt, 0) == pdPASS) {
       player.handleEvent(evt);
@@ -56,55 +56,55 @@ void setup() {
 
   // Mode Selection Logic
   if (pcf.digitalRead(PIN_MODE) == LOW) {
-    
+
     // Double beep for AP Mode before init
-    vTaskDelay(pdMS_TO_TICKS(500));// clear buzeer
+    vTaskDelay(pdMS_TO_TICKS(500));  // clear buzeer
     triggerBuzzer(100);
     vTaskDelay(pdMS_TO_TICKS(150));
     triggerBuzzer(100);
 
     wifiManager.startAPMinimal();
-    
+
     // Inisialisasi LED untuk mode AP
     led.begin();
-    
+
     // In Setup Mode, we stay in setup() and just loop the webserver
     uint32_t pressStart = 0;
-    while(true) {
-        button.update();
-        led.update(); // Update LED status
-        
-        bool modePressed = (pcf.digitalRead(PIN_MODE) == LOW);
-        if (modePressed) {
-            if (pressStart == 0) pressStart = millis();
-            if (millis() - pressStart >= 2000) {
-                
-                // Double beep for exit
-                triggerBuzzer(100);
-                vTaskDelay(pdMS_TO_TICKS(150));
-                triggerBuzzer(100);
-                vTaskDelay(pdMS_TO_TICKS(1000));
-                
-                ESP.restart();
-            }
-        } else {
-            pressStart = 0;
-        }
+    while (true) {
+      button.update();
+      led.update();  // Update LED status
 
-        webServer.update();
-        vTaskDelay(pdMS_TO_TICKS(10));
+      bool modePressed = (pcf.digitalRead(PIN_MODE) == LOW);
+      if (modePressed) {
+        if (pressStart == 0) pressStart = millis();
+        if (millis() - pressStart >= 2000) {
+
+          // Double beep for exit
+          triggerBuzzer(100);
+          vTaskDelay(pdMS_TO_TICKS(150));
+          triggerBuzzer(100);
+          vTaskDelay(pdMS_TO_TICKS(1000));
+
+          ESP.restart();
+        }
+      } else {
+        pressStart = 0;
+      }
+
+      webServer.update();
+      vTaskDelay(pdMS_TO_TICKS(10));
     }
   } else {
     if (wifiManager.isSTAEnabled())
       wifiManager.startSTAOnly();
 
     led.begin();
-    
+
     // Debug SD Card
     if (sdcard.begin()) {
-        Serial.println("[SYSTEM] SD Card module initialized");
+      Serial.println("[SYSTEM] SD Card module initialized");
     } else {
-        Serial.println("[SYSTEM] SD Card module failed to init");
+      Serial.println("[SYSTEM] SD Card module failed to init");
     }
     Serial.printf("[SYSTEM] SD Card physical: %s\n", (digitalRead(PIN_SD_DET) == LOW) ? "DETECTED" : "NOT DETECTED");
 
@@ -126,7 +126,7 @@ void setup() {
 
 void systemTask(void *pvParameters) {
   for (;;) {
-    lastSystemTask = millis(); // Heartbeat
+    lastSystemTask = millis();  // Heartbeat
     button.update();
     sdcard.update();
 

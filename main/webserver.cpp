@@ -120,9 +120,27 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   .danger { background: var(--danger); color: white; padding: 6px 10px; font-size: 0.75rem; vertical-align: middle; }
   .upload-btn { padding: 0 14px; font-size: 0.95rem; box-sizing: border-box; height: 42px; display: inline-flex; align-items: center; cursor: pointer; }
   .file-label { padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; height: 42px; box-sizing: border-box; font-size: 0.95rem; display: inline-flex; align-items: center; justify-content: center; }
+  .progress-bg { background: #334155; border-radius: 8px; height: 16px; overflow: hidden; margin: 10px 0; }
+  .progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width 0.5s linear; }
   </style>
 </head>
 <body>
+<div class="card">
+  <h2>Player Control</h2>
+  <div id="playerStatus" style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 5px;">Not playing</div>
+  <div class="progress-bg"><div id="playerBar" class="progress-bar"></div></div>
+  <div class="row" style="justify-content: space-between; font-size: 0.85rem; color: var(--text-muted);">
+    <span id="timeElapsed">0:00</span>
+    <span id="modeDisplay">Manual</span>
+    <span id="timeRemaining">0:00</span>
+  </div>
+  <div class="row" style="justify-content: center; gap: 10px;">
+    <button onclick="sendCommand('prev')" class="primary upload-btn">Prev</button>
+    <button onclick="sendCommand('start')" class="primary upload-btn" style="min-width: 80px;" id="btnStart">Play</button>
+    <button onclick="sendCommand('next')" class="primary upload-btn">Next</button>
+    <button onclick="sendCommand('mode')" class="primary upload-btn">Mode</button>
+  </div>
+</div>
 <div class="card">
   <h2>MIDI File Manager</h2>
   <div class="row">
@@ -241,15 +259,60 @@ async function uploadOta() {
     };
     xhr.send(fileInput.files[0]);
   }
+  async function sendCommand(cmd) {
+    await fetch('/api/player/cmd?action='+cmd, { method: 'POST' });
+    loadData();
+  }
   async function loadData() {
       const t = Date.now();
+      
+      // Fetch Player
       try {
-          const resS = await fetch('/api/solenoids?t=' + t); const solenoids = await resS.json();
-          const resF = await fetch('/api/files?t=' + t); const filesRes = await resF.json();
-          const resT = await fetch('/api/time?t=' + t); const time = await resT.json();
+          const resP = await fetch('/api/player?t=' + t); 
+          const player = await resP.json();
+          document.getElementById('playerStatus').innerText = player.playing ? "Playing: " + player.file : (player.paused ? "Paused: " + player.file : "Stopped");
+          document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
+          document.getElementById('modeDisplay').innerText = player.auto ? "Auto Loop" : "Manual";
+          const barWidth = player.duration > 0 ? (player.elapsed / player.duration * 100) : 0;
+          document.getElementById('playerBar').style.width = barWidth + '%';
+          const remaining = Math.max(0, player.duration - player.elapsed);
+          document.getElementById('timeElapsed').innerText = formatTime(player.elapsed);
+          document.getElementById('timeRemaining').innerText = formatTime(remaining);
+      } catch (e) { console.error("Player load error", e); }
+
+      // Fetch Solenoids
+      try {
+          const resS = await fetch('/api/solenoids?t=' + t); 
+          const solenoids = await resS.json();
+          const sBody = document.getElementById('solenoidBody'); sBody.innerHTML = '';
+          solenoids.forEach(s => { sBody.innerHTML += `<tr><td class="col-pin center">${s.pin}</td><td class="col-note center">${s.note}</td><td class="col-midi center">${s.midi}</td><td class="col-s-action center" style="display: flex; justify-content: center; align-items: center; gap: 5px; padding: 8px 4px;"><button class="primary" onclick="testSolenoid(${s.pin})">Play</button><button class="danger" onclick="removeSolenoid(${s.pin})">Delete</button></td></tr>`; });
+      } catch (e) { console.error("Solenoids load error", e); }
+
+      // Fetch Files
+      try {
+          const resF = await fetch('/api/files?t=' + t); 
+          const filesRes = await resF.json();
+          const fBody = document.getElementById('fileBody'); fBody.innerHTML = '';
+          filesRes.files.forEach(f => { fBody.innerHTML += `<tr><td class="col-name left">${f.name}</td><td class="col-size center">${formatSize(f.size)}</td><td class="col-action" style="display: flex; justify-content: center; align-items: center; padding: 8px 4px;"><button class="danger" onclick="deleteFile('${f.name}')">Delete</button></td></tr>`; });
+          const sInfo = document.getElementById('storageInfo');
+          if (filesRes.storage) {
+              const used = filesRes.storage.total - filesRes.storage.free;
+              sInfo.innerText = `Total: ${formatSize(filesRes.storage.total)} | Used: ${formatSize(used)} | Free: ${formatSize(filesRes.storage.free)}`;
+          } else sInfo.innerText = 'SD Card not detected';
+      } catch (e) { console.error("Files load error", e); }
+
+      // Fetch Time
+      try {
+          const resT = await fetch('/api/time?t=' + t); 
+          const time = await resT.json();
           document.getElementById('currentTime').innerText = time;
-          render(solenoids, filesRes.files, filesRes.storage);
-      } catch (e) { console.error("Load error", e); }
+      } catch (e) { console.error("Time load error", e); }
+  }
+  function formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return mins + ":" + (secs < 10 ? "0" : "") + secs;
   }
   async function loadWifi() {
       try {
@@ -334,7 +397,7 @@ async function uploadOta() {
     if (res.ok) setTimeout(loadWifi, 500); else alert('Failed to save settings');
   }
   async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
-  setInterval(loadData, 3000); loadData(); loadWifi();
+  setInterval(loadData, 1000); loadData(); loadWifi();
 </script>
 </body>
 </html>
@@ -617,7 +680,42 @@ void WebServerManager::beginSTAFull() {
   httpd_uri_t files_delete_uri = {"/api/files", HTTP_DELETE, api_files_handler, nullptr};
   httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
   httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler, nullptr};
+
+  httpd_uri_t player_get_uri = {"/api/player", HTTP_GET, [](httpd_req_t *req) {
+      String file = String(sdcard.getCurrentFile());
+      if (file.length() == 0) file = "No file";
+      
+      String json = "{\"playing\":" + String(player.isPlaying() ? "true" : "false") + 
+                    ",\"paused\":" + String(player.isPaused() ? "true" : "false") + 
+                    ",\"auto\":" + String(player.isAutoMode() ? "true" : "false") + 
+                    ",\"file\":\"" + file + "\"" +
+                    ",\"duration\":" + String(player.getDurationUS() / 1000) + 
+                    ",\"elapsed\":" + String(player.getElapsedUS() / 1000) + "}";
+      httpd_resp_set_type(req, "application/json");
+      return httpd_resp_send(req, json.c_str(), json.length());
+  }, nullptr};
+
+  httpd_uri_t player_cmd_uri = {"/api/player/cmd", HTTP_POST, [](httpd_req_t *req) {
+      char buf[64]; size_t len = httpd_req_get_url_query_len(req);
+      if (len < sizeof(buf)) {
+          httpd_req_get_url_query_str(req, buf, len + 1);
+          char action[16];
+          if (httpd_query_key_value(buf, "action", action, sizeof(action)) == ESP_OK) {
+              String cmd(action);
+              if (cmd == "start") {
+                  if (player.isPlaying()) player.pause();
+                  else player.play();
+              } else if (cmd == "next") player.nextFile();
+              else if (cmd == "prev") player.prevFile();
+              else if (cmd == "mode") player.toggleMode();
+              return httpd_resp_send(req, "OK", 2);
+          }
+      }
+      return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid Command");
+  }, nullptr};
+
   httpd_uri_t ota_uri = {"/update", HTTP_POST, [](httpd_req_t *req) {
+
       size_t content_len = req->content_len;
       if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
       if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
@@ -651,6 +749,8 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &files_delete_uri);
   httpd_register_uri_handler(server, &wifi_get_uri);
   httpd_register_uri_handler(server, &wifi_post_uri);
+  httpd_register_uri_handler(server, &player_get_uri);
+  httpd_register_uri_handler(server, &player_cmd_uri);
   httpd_register_uri_handler(server, &ota_uri);
 
   active = true;

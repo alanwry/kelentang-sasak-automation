@@ -1,6 +1,7 @@
 ﻿#include "midi.h"
 #include "event_queue.h"
 #include "solenoid.h"
+#include "player.h"
 
 MidiFile midi;
 
@@ -168,7 +169,7 @@ bool MidiFile::parse() {
 
   // STEP 3: Process tracks
   uint32_t tempoUsPerQuarter = 500000;
-  uint64_t absoluteTicks = 0;
+  uint64_t maxAbsoluteTicks = 0;
 
   for (uint16_t trackIndex = 0; trackIndex < trackCount; trackIndex++) {
     char trackId[4];
@@ -192,6 +193,7 @@ bool MidiFile::parse() {
     uint32_t trackEnd = trackStart + trackLength;
     uint32_t trackBytesRead = 0;
     uint8_t runningStatus = 0;
+    uint64_t absoluteTicks = 0; // Reset ticks for each track to support parallel track playback
 
     // Process all events in track
     while (midiFile.position() < trackEnd && trackBytesRead < trackLength) {
@@ -389,11 +391,19 @@ bool MidiFile::parse() {
     }
 
 track_done:
+    if (absoluteTicks > maxAbsoluteTicks) {
+      maxAbsoluteTicks = absoluteTicks;
+    }
     uint32_t currentPos = midiFile.position();
     if (currentPos < trackEnd) {
       midiFile.seek(trackEnd);
     }
   }
 
+  // Urutkan event berdasarkan waktu (timeUS) karena track diproses satu per satu
+  eventQueue.sort();
+
+  // Durasi total sudah terhitung di maxAbsoluteTicks selama proses track
+  player.setTotalDurationUS((maxAbsoluteTicks * tempoUsPerQuarter) / division);
   return !eventQueue.empty();
 }
