@@ -4,10 +4,11 @@
 #include "esp_timer.h"
 #include "player.h"
 
-void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote) {
+void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel) {
   pin = gpio;
   this->note = note;
   this->midiNote = midiNote;
+  this->midiChannel = midiChannel;
   active = false;
   offTime = 0;
   pinMode(pin, OUTPUT);
@@ -43,6 +44,9 @@ String Solenoid::getNote() {
 }
 uint8_t Solenoid::getMidiNote() {
   return midiNote;
+}
+uint8_t Solenoid::getMidiChannel() {
+  return midiChannel;
 }
 
 SolenoidManager solenoid;
@@ -82,12 +86,14 @@ bool SolenoidManager::loadConfig() {
 
     int comma1 = line.indexOf(',');
     int comma2 = line.indexOf(',', comma1 + 1);
+    int comma3 = line.indexOf(',', comma2 + 1);
 
     if (comma1 > 0 && comma2 > comma1) {
       uint8_t p = line.substring(0, comma1).toInt();
       String n = line.substring(comma1 + 1, comma2);
-      uint8_t m = line.substring(comma2 + 1).toInt();
-      addSolenoid(p, n, m);
+      uint8_t m = line.substring(comma2 + 1, comma3 > 0 ? comma3 : line.length()).toInt();
+      uint8_t ch = (comma3 > 0) ? line.substring(comma3 + 1).toInt() : 0;
+      addSolenoid(p, n, m, ch);
     }
   }
   file.close();
@@ -106,8 +112,10 @@ bool SolenoidManager::saveConfig() {
     file.print(",");
     file.print(item[i].getNote());
     file.print(",");
-    file.println(item[i].getMidiNote());
-    Serial.printf("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote());
+    file.print(item[i].getMidiNote());
+    file.print(",");
+    file.println(item[i].getMidiChannel());
+    Serial.printf("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel());
   }
 
   file.flush();
@@ -115,9 +123,9 @@ bool SolenoidManager::saveConfig() {
   return true;
 }
 
-void SolenoidManager::addSolenoid(uint8_t pin, String note, uint8_t midiNote) {
+void SolenoidManager::addSolenoid(uint8_t pin, String note, uint8_t midiNote, uint8_t midiChannel) {
   if (count < MAX_SOLENOID) {
-    item[count++].begin(pin, note, midiNote);
+    item[count++].begin(pin, note, midiNote, midiChannel);
   }
 }
 
@@ -157,4 +165,3 @@ uint8_t SolenoidManager::getCount() const {
 Solenoid* SolenoidManager::getItems() {
   return (Solenoid*)item;
 }
-

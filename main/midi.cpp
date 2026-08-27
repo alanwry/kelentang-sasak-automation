@@ -249,8 +249,11 @@ bool MidiFile::parse() {
 
           if (data2 > 0) {
             Solenoid *items = solenoid.getItems();
+            uint8_t channel = (statusByte & 0x0F) + 1; // MIDI channel 1-16
+            
             for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-              if (items[i].getMidiNote() == data1) {
+              if (items[i].getMidiNote() == data1 && 
+                 (items[i].getMidiChannel() == 0 || items[i].getMidiChannel() == channel)) {
                 MidiEvent evt;
                 evt.timeUS = (absoluteTicks * tempoUsPerQuarter) / division;
                 evt.type = EVENT_NOTE_ON;
