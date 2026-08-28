@@ -11,36 +11,33 @@ extern void triggerBuzzer(uint16_t duration);
 
 WiFiManager wifiManager;
 WiFiManager::WiFiManager()
-    : ssid(""), password(""), enableSTA(false), isConnecting(false),
-      connectionStart(0) {}
+  : ssid(""), password(""), enableSTA(false), isConnecting(false), connectionStart(0) {}
 
-void WiFiManager::begin() { loadFromPrefs(); }
+void WiFiManager::begin() {
+  loadFromPrefs();
+}
 
 void WiFiManager::update() {
   if (isConnecting) {
     if (WiFi.status() == WL_CONNECTED) {
       isConnecting = false;
-      Serial.println("[WIFI] STA Connected successfully");
-      // webServer.begin(); // Removed: handled by startSTAOnly
-    } else if (millis() - connectionStart > 15000) { // 15s timeout
+      LOG("[WIFI] STA Connected successfully\n");
+    } else if (millis() - connectionStart > 15000) {
       isConnecting = false;
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      Serial.println("[WIFI] STA Connection failed (timeout)");
+      LOG("[WIFI] STA Connection failed (timeout)\n");
     }
   }
 }
 
 void WiFiManager::loadFromPrefs() {
-  // Try read-only first
   if (prefs.begin("gamelan_wifi", true)) {
     ssid = prefs.getString("ssid", "");
     password = prefs.getString("password", "");
     enableSTA = prefs.getBool("enableSTA", false);
     prefs.end();
   } else {
-    // If failed, it might not exist. Try opening in write mode to initialize
-    // it.
     if (prefs.begin("gamelan_wifi", false)) {
       ssid = "";
       password = "";
@@ -50,12 +47,11 @@ void WiFiManager::loadFromPrefs() {
   }
 }
 
-void WiFiManager::saveSettings(String newSsid, String newPassword,
-                               bool newEnableSTA) {
+void WiFiManager::saveSettings(String newSsid, String newPassword, bool newEnableSTA) {
   bool oldEnableSTA = enableSTA;
   String oldSsid = ssid;
   String oldPassword = password;
-  
+
   ssid = newSsid;
   password = newPassword;
   enableSTA = newEnableSTA;
@@ -65,36 +61,33 @@ void WiFiManager::saveSettings(String newSsid, String newPassword,
     prefs.putString("password", password);
     prefs.putBool("enableSTA", enableSTA);
     prefs.end();
-    
-    // Single longer beep for save confirmation
+
     triggerBuzzer(400);
-    vTaskDelay(pdMS_TO_TICKS(400)); // Give the buzzer time to finish before potentially changing state
-    
-    // Only take immediate action if we are in STA operational mode
+    vTaskDelay(pdMS_TO_TICKS(400));
+
     if (WiFi.getMode() == WIFI_STA) {
-        if (!enableSTA) {
-            WiFi.disconnect(true);
-            WiFi.mode(WIFI_OFF);
-        } else if (oldEnableSTA != enableSTA || oldSsid != ssid || oldPassword != password) {
-            // Restart only if STA was just enabled or credentials changed
-            ESP.restart();
-        }
-    } else if (WiFi.getMode() == WIFI_AP && enableSTA && !oldEnableSTA) {
-        // If in AP mode and user enables STA, we might want to restart to apply
+      if (!enableSTA) {
+        WiFi.disconnect(true);
+        WiFi.mode(WIFI_OFF);
+      } else if (oldEnableSTA != enableSTA || oldSsid != ssid || oldPassword != password) {
         ESP.restart();
+      }
+    } else if (WiFi.getMode() == WIFI_AP && enableSTA && !oldEnableSTA) {
+      ESP.restart();
     }
   } else {
   }
 }
 
-void WiFiManager::getSettings(String &outSsid, String &outPassword,
-                              bool &outEnableSTA) {
+void WiFiManager::getSettings(String &outSsid, String &outPassword, bool &outEnableSTA) {
   outSsid = ssid;
   outPassword = password;
   outEnableSTA = enableSTA;
 }
 
-bool WiFiManager::isSTAEnabled() { return enableSTA; }
+bool WiFiManager::isSTAEnabled() {
+  return enableSTA;
+}
 void WiFiManager::stopAll() {
 
   if (webServer.isActive()) {
@@ -112,42 +105,41 @@ void WiFiManager::stopAll() {
 void WiFiManager::startAPMinimal() {
   stopAll();
   xTaskCreatePinnedToCore(
-      [](void *parameter) {
-        WiFi.mode(WIFI_AP);
-        IPAddress local_IP(192, 168, 4, 1);
-        IPAddress gateway(192, 168, 4, 1);
-        IPAddress subnet(255, 255, 255, 0);
-        WiFi.softAPConfig(local_IP, gateway, subnet);
+    [](void *parameter) {
+      WiFi.mode(WIFI_AP);
+      IPAddress local_IP(192, 168, 4, 1);
+      IPAddress gateway(192, 168, 4, 1);
+      IPAddress subnet(255, 255, 255, 0);
+      WiFi.softAPConfig(local_IP, gateway, subnet);
 
-        if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 4)) {
-          webServer.beginAPMinimal(); // Call the minimal webserver dashboard
-        }
-        vTaskDelete(NULL);
-      },
-      "APSetup", 4096, NULL, 1, NULL, 1);
+      if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 4)) {
+        webServer.beginAPMinimal();
+      }
+      vTaskDelete(NULL);
+    },
+    "APSetup", 4096, NULL, 1, NULL, 1);
 }
 
 void WiFiManager::startSTAOnly() {
   if (ssid.length() == 0) return;
   stopAll();
-  Serial.println("[WIFI] Starting STA mode...");
   xTaskCreatePinnedToCore(
-      [](void *parameter) {
-        WiFi.mode(WIFI_STA);
-        WiFi.setHostname("mydashboard");
-        WiFi.begin(wifiManager.ssid.c_str(), wifiManager.password.c_str());
-        uint32_t start = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - start < 15000)) {
-          vTaskDelay(pdMS_TO_TICKS(500));
-        }
-        if (WiFi.status() == WL_CONNECTED) {
-          Serial.println("[WIFI] STA Connected");
-          Serial.print("[WIFI] IP Address: "); Serial.println(WiFi.localIP());
-          webServer.beginSTAFull(); // Call the full operational webserver dashboard
-        } else {
-          Serial.println("[WIFI] STA Connection FAILED");
-        }
-        vTaskDelete(NULL);
-      },
-      "STANormal", 4096, NULL, 1, NULL, 1);
+    [](void *parameter) {
+      WiFi.mode(WIFI_STA);
+      WiFi.setHostname("mydashboard");
+      WiFi.begin(wifiManager.ssid.c_str(), wifiManager.password.c_str());
+      uint32_t start = millis();
+      while (WiFi.status() != WL_CONNECTED && (millis() - start < 15000)) {
+        vTaskDelay(pdMS_TO_TICKS(500));
+      }
+      if (WiFi.status() == WL_CONNECTED) {
+        LOG("[WIFI] STA Connected\n");
+        LOG("[WIFI] IP Address: %s\n", WiFi.localIP().toString().c_str());
+        webServer.beginSTAFull();
+      } else {
+        LOG("[WIFI] STA Connection FAILED\n");
+      }
+      vTaskDelete(NULL);
+    },
+    "STANormal", 4096, NULL, 1, NULL, 1);
 }

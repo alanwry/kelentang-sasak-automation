@@ -2,13 +2,12 @@
 #include "event_queue.h"
 #include "solenoid.h"
 #include "player.h"
+#include "webserver.h"
 
 MidiFile midi;
 
 namespace {
-// Helper functions for reading MIDI files
 
-// Read 16-bit big-endian with validation
 bool readBe16Safe(File &file, uint16_t &result, uint32_t &bytesRead) {
   if (file.available() < 2)
     return false;
@@ -19,7 +18,6 @@ bool readBe16Safe(File &file, uint16_t &result, uint32_t &bytesRead) {
   return true;
 }
 
-// Read 32-bit big-endian with validation
 bool readBe32Safe(File &file, uint32_t &result, uint32_t &bytesRead) {
   if (file.available() < 4)
     return false;
@@ -32,7 +30,6 @@ bool readBe32Safe(File &file, uint32_t &result, uint32_t &bytesRead) {
   return true;
 }
 
-// Variable-length quantity decoder
 bool readVarLengthSafe(File &file, uint32_t &value, uint32_t &bytesRead) {
   value = 0;
   uint8_t b;
@@ -73,6 +70,9 @@ bool MidiFile::open(File file) {
   midiFile = file;
   eventCount = 0;
   lastError = 0;
+  if (!midiFile) {
+    LOG("[MIDI] Open failed: invalid file handle\n");
+  }
   return midiFile;
 }
 
@@ -86,10 +86,9 @@ bool MidiFile::eof() {
   return !midiFile || midiFile.available() == 0;
 }
 
-// MAIN MIDI PARSER
 bool MidiFile::parse() {
   if (!midiFile) {
-    Serial.println("[MIDI] parse failed: file not valid");
+    LOG("[MIDI] parse failed: file not valid\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
@@ -97,58 +96,63 @@ bool MidiFile::parse() {
   eventQueue.clear();
   eventCount = 0;
 
-  // STEP 1: Validate MIDI header (MThd)
   char id[4];
   uint32_t bytesRead = 0;
 
   if (!readExactSafe(midiFile, (uint8_t *)id, 4, bytesRead)) {
+    LOG("[MIDI] parse failed: file truncated reading header ID\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
 
   if (strncmp(id, "MThd", 4) != 0) {
-    Serial.println("[MIDI] parse failed: invalid header");
+    LOG("[MIDI] parse failed: invalid header\n");
     lastError = ERR_INVALID_HEADER;
     return false;
   }
 
-  // STEP 2: Read MIDI header data
   uint32_t headerLength = 0;
   if (!readBe32Safe(midiFile, headerLength, bytesRead)) {
+    LOG("[MIDI] parse failed: file truncated reading header length\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
 
   if (headerLength < 6) {
+    LOG("[MIDI] parse failed: invalid header length (< 6)\n");
     lastError = ERR_INVALID_FORMAT;
     return false;
   }
 
   uint16_t format = 0;
   if (!readBe16Safe(midiFile, format, bytesRead)) {
+    LOG("[MIDI] parse failed: file truncated reading format\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
 
   if (format > 2) {
+    LOG("[MIDI] parse failed: unsupported format (%d)\n", format);
     lastError = ERR_INVALID_FORMAT;
     return false;
   }
 
   uint16_t trackCount = 0;
   if (!readBe16Safe(midiFile, trackCount, bytesRead)) {
+    LOG("[MIDI] parse failed: file truncated reading track count\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
 
   if (trackCount == 0) {
-    Serial.println("[MIDI] parse failed: no tracks");
+    LOG("[MIDI] parse failed: no tracks\n");
     lastError = ERR_INVALID_FORMAT;
     return false;
   }
 
   uint16_t division = 0;
   if (!readBe16Safe(midiFile, division, bytesRead)) {
+    LOG("[MIDI] parse failed: file truncated reading division\n");
     lastError = ERR_FILE_TRUNCATED;
     return false;
   }
@@ -158,33 +162,35 @@ bool MidiFile::parse() {
   else if (division == 0)
     division = 480;
 
-  // Skip extra header bytes if present
   if (headerLength > 6) {
     uint32_t skipLen = headerLength - 6;
     if (!skipSafe(midiFile, skipLen, bytesRead)) {
+      LOG("[MIDI] parse failed: file truncated skipping extra header bytes\n");
       lastError = ERR_FILE_TRUNCATED;
       return false;
     }
   }
 
-  // STEP 3: Process tracks
   uint32_t tempoUsPerQuarter = 500000;
   uint64_t maxAbsoluteTicks = 0;
 
   for (uint16_t trackIndex = 0; trackIndex < trackCount; trackIndex++) {
     char trackId[4];
     if (!readExactSafe(midiFile, (uint8_t *)trackId, 4, bytesRead)) {
+      LOG("[MIDI] parse failed: truncated header at track %d\n", trackIndex);
       lastError = ERR_FILE_TRUNCATED;
       break;
     }
 
     if (strncmp(trackId, "MTrk", 4) != 0) {
+      LOG("[MIDI] parse failed: invalid track header '%.4s' at track %d\n", trackId, trackIndex);
       lastError = ERR_INVALID_TRACK;
       break;
     }
 
     uint32_t trackLength = 0;
     if (!readBe32Safe(midiFile, trackLength, bytesRead)) {
+      LOG("[MIDI] parse failed: truncated length at track %d\n", trackIndex);
       lastError = ERR_FILE_TRUNCATED;
       break;
     }
@@ -193,18 +199,19 @@ bool MidiFile::parse() {
     uint32_t trackEnd = trackStart + trackLength;
     uint32_t trackBytesRead = 0;
     uint8_t runningStatus = 0;
-    uint64_t absoluteTicks = 0; // Reset ticks for each track to support parallel track playback
+    uint64_t absoluteTicks = 0;
 
-    // Process all events in track
     while (midiFile.position() < trackEnd && trackBytesRead < trackLength) {
       uint32_t delta = 0;
       if (!readVarLengthSafe(midiFile, delta, trackBytesRead)) {
+        LOG("[MIDI] parse error: bad var-length delta in track %d\n", trackIndex);
         lastError = ERR_PARSE_ERROR;
         break;
       }
       absoluteTicks += delta;
 
       if (!midiFile.available()) {
+        LOG("[MIDI] parse error: unexpected EOF in track %d\n", trackIndex);
         lastError = ERR_FILE_TRUNCATED;
         break;
       }
@@ -226,10 +233,10 @@ bool MidiFile::parse() {
       uint8_t statusNibble = statusByte >> 4;
       uint8_t data1, data2;
 
-      // STEP 4: Parse each MIDI event based on status byte
       switch (statusNibble) {
-        case 0x8:  // Note Off
+        case 0x8:
           if (midiFile.available() < 2) {
+            LOG("[MIDI] parse error: truncated Note Off event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -238,8 +245,9 @@ bool MidiFile::parse() {
           trackBytesRead += 2;
           break;
 
-        case 0x9:  // Note On
+        case 0x9:
           if (midiFile.available() < 2) {
+            LOG("[MIDI] parse error: truncated Note On event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -249,11 +257,10 @@ bool MidiFile::parse() {
 
           if (data2 > 0) {
             Solenoid *items = solenoid.getItems();
-            uint8_t channel = (statusByte & 0x0F) + 1; // MIDI channel 1-16
-            
+            uint8_t channel = (statusByte & 0x0F) + 1;
+
             for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-              if (items[i].getMidiNote() == data1 && 
-                 (items[i].getMidiChannel() == 0 || items[i].getMidiChannel() == channel)) {
+              if (items[i].getMidiNote() == data1 && (items[i].getMidiChannel() == 0 || items[i].getMidiChannel() == channel)) {
                 MidiEvent evt;
                 evt.timeUS = (absoluteTicks * tempoUsPerQuarter) / division;
                 evt.type = EVENT_NOTE_ON;
@@ -269,6 +276,7 @@ bool MidiFile::parse() {
 
         case 0xA:
           if (midiFile.available() < 2) {
+            LOG("[MIDI] parse error: truncated Aftertouch event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -277,8 +285,9 @@ bool MidiFile::parse() {
           trackBytesRead += 2;
           break;
 
-        case 0xB:  // Control Change
+        case 0xB:
           if (midiFile.available() < 2) {
+            LOG("[MIDI] parse error: truncated Control Change event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -287,8 +296,9 @@ bool MidiFile::parse() {
           trackBytesRead += 2;
           break;
 
-        case 0xC:  // Program Change
+        case 0xC:
           if (!midiFile.available()) {
+            LOG("[MIDI] parse error: truncated Program Change event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -296,8 +306,9 @@ bool MidiFile::parse() {
           trackBytesRead++;
           break;
 
-        case 0xD:  // Channel Pressure
+        case 0xD:
           if (!midiFile.available()) {
+            LOG("[MIDI] parse error: truncated Channel Pressure event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -305,8 +316,9 @@ bool MidiFile::parse() {
           trackBytesRead++;
           break;
 
-        case 0xE:  // Pitch Bend
+        case 0xE:
           if (midiFile.available() < 2) {
+            LOG("[MIDI] parse error: truncated Pitch Bend event in track %d\n", trackIndex);
             lastError = ERR_FILE_TRUNCATED;
             goto track_done;
           }
@@ -315,9 +327,10 @@ bool MidiFile::parse() {
           trackBytesRead += 2;
           break;
 
-        case 0xF:                    // System/Meta event
-          if (statusByte == 0xFF) {  // Meta event
+        case 0xF:
+          if (statusByte == 0xFF) {
             if (!midiFile.available()) {
+              LOG("[MIDI] parse error: truncated Meta event in track %d\n", trackIndex);
               lastError = ERR_FILE_TRUNCATED;
               goto track_done;
             }
@@ -326,18 +339,21 @@ bool MidiFile::parse() {
             trackBytesRead++;
 
             if (!midiFile.available()) {
+              LOG("[MIDI] parse error: truncated Meta type in track %d\n", trackIndex);
               lastError = ERR_FILE_TRUNCATED;
               goto track_done;
             }
 
             uint32_t metaLength = 0;
             if (!readVarLengthSafe(midiFile, metaLength, trackBytesRead)) {
+              LOG("[MIDI] parse error: truncated Meta length in track %d\n", trackIndex);
               lastError = ERR_FILE_TRUNCATED;
               goto track_done;
             }
 
-            if (metaType == 0x51 && metaLength >= 3) {  // Set Tempo (IMPORTANT)
+            if (metaType == 0x51 && metaLength >= 3) {
               if (midiFile.available() < 3) {
+                LOG("[MIDI] parse error: truncated Tempo event in track %d\n", trackIndex);
                 lastError = ERR_FILE_TRUNCATED;
                 goto track_done;
               }
@@ -351,9 +367,10 @@ bool MidiFile::parse() {
                 tempoUsPerQuarter = 200000;
               if (tempoUsPerQuarter > 3000000)
                 tempoUsPerQuarter = 3000000;
-            } else if (metaType == 0x2F) {  // End of Track
+            } else if (metaType == 0x2F) {
               if (metaLength > 0) {
                 if (!skipSafe(midiFile, metaLength, trackBytesRead)) {
+                  LOG("[MIDI] parse error: truncated End-of-Track event in track %d\n", trackIndex);
                   lastError = ERR_FILE_TRUNCATED;
                   goto track_done;
                 }
@@ -362,25 +379,29 @@ bool MidiFile::parse() {
             } else {
               if (metaLength > 0) {
                 if (!skipSafe(midiFile, metaLength, trackBytesRead)) {
+                  LOG("[MIDI] parse error: truncated Meta payload in track %d\n", trackIndex);
                   lastError = ERR_FILE_TRUNCATED;
                   goto track_done;
                 }
               }
             }
-          } else if (statusByte == 0xF0 || statusByte == 0xF7) {  // SysEx
+          } else if (statusByte == 0xF0 || statusByte == 0xF7) {
             if (!midiFile.available()) {
+              LOG("[MIDI] parse error: truncated SysEx event in track %d\n", trackIndex);
               lastError = ERR_FILE_TRUNCATED;
               goto track_done;
             }
 
             uint32_t sysexLen = 0;
             if (!readVarLengthSafe(midiFile, sysexLen, trackBytesRead)) {
+              LOG("[MIDI] parse error: truncated SysEx length in track %d\n", trackIndex);
               lastError = ERR_FILE_TRUNCATED;
               goto track_done;
             }
 
             if (sysexLen > 0) {
               if (!skipSafe(midiFile, sysexLen, trackBytesRead)) {
+                LOG("[MIDI] parse error: truncated SysEx payload in track %d\n", trackIndex);
                 lastError = ERR_FILE_TRUNCATED;
                 goto track_done;
               }
@@ -403,10 +424,11 @@ track_done:
     }
   }
 
-  // Urutkan event berdasarkan waktu (timeUS) karena track diproses satu per satu
   eventQueue.sort();
 
-  // Durasi total sudah terhitung di maxAbsoluteTicks selama proses track
   player.setTotalDurationUS((maxAbsoluteTicks * tempoUsPerQuarter) / division);
+  if (eventQueue.empty()) {
+    LOG("[MIDI] parse warning: process completed but no playable events queued\n");
+  }
   return !eventQueue.empty();
 }

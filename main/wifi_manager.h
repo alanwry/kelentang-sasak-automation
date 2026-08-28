@@ -10,13 +10,11 @@ public:
   void begin();
   void update(); 
 
-  // New streamlined modes
-  void startAPMinimal(); // Setup mode
-  void startSTAOnly();   // Normal operational mode
+  void startAPMinimal(); 
+  void startSTAOnly();  
 
   void stopAll();
 
-  // Settings
   void saveSettings(String ssid, String password, bool enableSTA);
   void getSettings(String &ssid, String &password, bool &enableSTA);
   bool isSTAEnabled();

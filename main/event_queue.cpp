@@ -1,4 +1,5 @@
 #include "event_queue.h"
+#include "webserver.h"
 
 EventQueue eventQueue;
 
@@ -32,7 +33,7 @@ void EventQueue::push(const MidiEvent &event) {
   count++;
   static bool logged = false;
   if (!logged) {
-    Serial.println("[QUEUE]: MIDI event queued");
+    LOG("[QUEUE]: MIDI event queued\n");
     logged = true;
   }
 }
@@ -61,7 +62,6 @@ void EventQueue::sort() {
     current = (current + 1) % MAX_EVENTS;
   }
 
-  // Insertion sort (ascending based on timeUS)
   for (uint8_t i = 1; i < count; i++) {
     MidiEvent key = temp[i];
     int16_t j = i - 1;
@@ -80,5 +80,5 @@ void EventQueue::sort() {
   tail = count;
   if (tail >= MAX_EVENTS) tail = 0;
 
-  Serial.printf("[QUEUE] Sorted %d events\n", count);
+  LOG("[QUEUE] Sorted %d events\n", count);
 }

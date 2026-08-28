@@ -25,7 +25,6 @@ void LedController::begin() {
 
 void LedController::update() {
   if (!button.isInitialized()) {
-    // CRITICAL: PCF8574 not initialized. LED control unavailable.
     return;
   }
 
@@ -47,7 +46,6 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_NET, LOW);
   }
 
-  // RUN LED: ON constant when Paused, blinking when Playing
   if (player.isPlaying()) {
     static uint32_t lastPlayBlink = 0;
     static bool playBlinkState = false;
@@ -63,7 +61,6 @@ void LedController::update() {
     pcf.digitalWrite(PIN_LED_RUN, LOW);
   }
 
-  // ERR LED: Indicates critical system failures
   bool sdError = !sdcard.isDetected();
   bool playerError = player.hasLoadingError();
   bool solenoidError = solenoid.hasConfigError();

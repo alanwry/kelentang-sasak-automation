@@ -9,7 +9,6 @@ Adafruit_PCF8574 pcf;
 static const uint8_t buttonPin[4] = { PIN_PREV, PIN_PLAY_PAUSE, PIN_NEXT, PIN_MODE };
 
 void ButtonManager::begin() {
-  // CRITICAL: Ensure PCF8574 I2C communication is established during startup
   if (!pcf.begin(PCF8574_ADDRESS, &Wire)) {
     initialized = false;
     return;

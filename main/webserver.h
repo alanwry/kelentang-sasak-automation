@@ -5,12 +5,16 @@
 
 class WebServerManager {
 public:
-  void beginAPMinimal(); // AP Setup Dashboard
-  void beginSTAFull();   // Normal Operation Dashboard
+  void beginAPMinimal();  
+  void beginSTAFull();    
   void stop();
   void update();
   bool isActive() const;
 };
+
+void sendLogToClients(const char* message);
+
+void LOG(const char* format, ...);
 
 extern WebServerManager webServer;
 

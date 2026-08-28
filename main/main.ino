@@ -20,7 +20,6 @@ extern void triggerBuzzer(uint16_t duration);
 QueueHandle_t buttonQueue;
 SemaphoreHandle_t wifiSemaphore;
 
-// Error Monitoring
 volatile uint32_t lastMidiTask = 0;
 volatile uint32_t lastSystemTask = 0;
 
@@ -33,7 +32,7 @@ bool isSystemHang() {
 
 void midiTask(void *pvParameters) {
   for (;;) {
-    lastMidiTask = millis();  // Heartbeat
+    lastMidiTask = millis();
     ButtonID evt;
     if (xQueueReceive(buttonQueue, &evt, 0) == pdPASS) {
       player.handleEvent(evt);
@@ -45,41 +44,34 @@ void midiTask(void *pvParameters) {
 
 void setup() {
   Serial.begin(115200);
-  // Wait longer for Native USB CDC connection
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   Wire.begin(I2C_SDA, I2C_SCL);
 
   button.begin();
   wifiManager.begin();
-  Serial.printf("[SYSTEM] WiFi STA: %s\n", wifiManager.isSTAEnabled() ? "ENABLED" : "DISABLED");
 
-  // Mode Selection Logic
   if (pcf.digitalRead(PIN_MODE) == LOW) {
 
-    // Double beep for AP Mode before init
-    vTaskDelay(pdMS_TO_TICKS(500));  // clear buzeer
+    vTaskDelay(pdMS_TO_TICKS(500));
     triggerBuzzer(100);
     vTaskDelay(pdMS_TO_TICKS(150));
     triggerBuzzer(100);
 
     wifiManager.startAPMinimal();
 
-    // Inisialisasi LED untuk mode AP
     led.begin();
 
-    // In Setup Mode, we stay in setup() and just loop the webserver
     uint32_t pressStart = 0;
     while (true) {
       button.update();
-      led.update();  // Update LED status
+      led.update();
 
       bool modePressed = (pcf.digitalRead(PIN_MODE) == LOW);
       if (modePressed) {
         if (pressStart == 0) pressStart = millis();
         if (millis() - pressStart >= 2000) {
 
-          // Double beep for exit
           triggerBuzzer(100);
           vTaskDelay(pdMS_TO_TICKS(150));
           triggerBuzzer(100);
@@ -100,19 +92,17 @@ void setup() {
 
     led.begin();
 
-    // Debug SD Card
     if (sdcard.begin()) {
-      Serial.println("[SYSTEM] SD Card module initialized");
+      LOG("[SYSTEM] SD Card module initialized\n");
     } else {
-      Serial.println("[SYSTEM] SD Card module failed to init");
+      LOG("[SYSTEM] SD Card module failed to init\n");
     }
-    Serial.printf("[SYSTEM] SD Card physical: %s\n", (digitalRead(PIN_SD_DET) == LOW) ? "DETECTED" : "NOT DETECTED");
 
     solenoid.begin();
     sdcard.scan();
     player.begin();
-    Serial.printf("[SYSTEM] Play Mode: %s\n", player.isAutoMode() ? "AUTO (LOOP)" : "MANUAL");
-    Serial.printf("[SYSTEM] Actuator Duration: %d ms\n", player.getSolenoidTime());
+    LOG("[SYSTEM] Play Mode: %s\n", player.isAutoMode() ? "Continuous" : "PlayOnce");
+    LOG("[SYSTEM] Actuator Duration: %d ms\n", player.getSolenoidTime());
 
     triggerBuzzer(400);
 
@@ -123,10 +113,9 @@ void setup() {
   }
 }
 
-
 void systemTask(void *pvParameters) {
   for (;;) {
-    lastSystemTask = millis();  // Heartbeat
+    lastSystemTask = millis();
     button.update();
     sdcard.update();
 

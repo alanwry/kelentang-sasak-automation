@@ -3,6 +3,7 @@
 #include "config.h"
 #include "esp_timer.h"
 #include "player.h"
+#include "webserver.h"
 
 void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel) {
   pin = gpio;
@@ -54,7 +55,7 @@ SolenoidManager solenoid;
 void SolenoidManager::begin() {
   count = 0;
   if (!loadConfig()) {
-    Serial.println("[SOLENOID] No config file, using defaults");
+    LOG("[SOLENOID] No config file, using defaults\n");
     configError = true;
   } else {
     configError = false;
@@ -63,8 +64,8 @@ void SolenoidManager::begin() {
 
 void SolenoidManager::test(uint8_t pin) {
   uint32_t now = millis();
-  if (now - lastTestTime < 1000) return; // Debounce 1 second
-  
+  if (now - lastTestTime < 1000) return;  // Debounce 1 second
+
   for (uint8_t i = 0; i < count; i++) {
     if (item[i].getPin() == pin) {
       item[i].hit(player.getSolenoidTime());
@@ -103,7 +104,7 @@ bool SolenoidManager::loadConfig() {
 bool SolenoidManager::saveConfig() {
   File file = SD.open("/solenoids.txt", FILE_WRITE);
   if (!file) {
-    Serial.println("[SOLENOID]: Error: Failed to save config");
+    LOG("[SOLENOID]: Error: Failed to save config\n");
     return false;
   }
 
@@ -115,7 +116,7 @@ bool SolenoidManager::saveConfig() {
     file.print(item[i].getMidiNote());
     file.print(",");
     file.println(item[i].getMidiChannel());
-    Serial.printf("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel());
+    LOG("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel());
   }
 
   file.flush();

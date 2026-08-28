@@ -13,13 +13,54 @@
 #include <Update.h>
 #include <Preferences.h>
 #include <time.h>
+#include <vector>
+#include <stdarg.h>
+#include <algorithm>
+#include <NetBIOS.h>
+
+// WebSerial support
+static std::vector<int> ws_clients;
+httpd_handle_t server = nullptr;
+
+void sendLogToClients(const char *message) {
+  if (ws_clients.empty() || server == nullptr) return;
+  for (auto it = ws_clients.begin(); it != ws_clients.end();) {
+    httpd_ws_frame_t ws_pkt;
+    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+    ws_pkt.payload = (uint8_t *)message;
+    ws_pkt.len = strlen(message);
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+
+    esp_err_t ret = httpd_ws_send_frame_async(server, *it, &ws_pkt);
+    if (ret != ESP_OK) {
+      it = ws_clients.erase(it);  // Hapus socket jika gagal kirim / terputus
+    } else {
+      ++it;
+    }
+  }
+}
+
+// Implementasi LOG Global
+void LOG(const char *format, ...) {
+  char buf[256];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buf, sizeof(buf), format, args);
+  va_end(args);
+
+  Serial.print(buf);
+
+  String msg(buf);
+  if (!msg.endsWith("\n")) msg += "\n";
+
+  sendLogToClients(msg.c_str());
+}
 
 extern void triggerBuzzer(uint16_t duration);
 String sanitizeFilename(String filename);  // Forward declaration
 
 WebServerManager webServer;
 namespace {
-httpd_handle_t server = nullptr;
 bool active = false;
 bool needsScan = false;
 }
@@ -109,30 +150,31 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       --input-bg: #0f172a;
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 15px; line-height: 1.5; display: flex; flex-direction: column; align-items: center; }
     
-    header { max-width: 1100px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
-    header h1 { margin: 0; font-size: 1.4rem; color: var(--accent); letter-spacing: -0.025em; }
+    header { width: 100%; max-width: 480px; margin: 0 auto 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+    header h1 { margin: 0; font-size: 1.3rem; color: var(--accent); letter-spacing: -0.025em; }
     
     .dashboard-grid { 
-      display: grid; 
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
-      gap: 20px; 
-      max-width: 1100px; 
+      display: flex;
+      flex-direction: column;
+      gap: 16px; 
+      width: 100%;
+      max-width: 480px; 
       margin: 0 auto; 
     }
     
-    .card { background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 1px solid var(--border); display: flex; flex-direction: column; }
-    .card-full { grid-column: 1 / -1; }
+    .card { background: var(--card-bg); padding: 18px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 1px solid var(--border); display: flex; flex-direction: column; width: 100%; }
+    .card-full { width: 100%; }
     
-    h2 { margin-top: 0; margin-bottom: 15px; color: var(--accent); font-size: 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
-    .row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    h2 { margin-top: 0; margin-bottom: 12px; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .row-wrap { flex-wrap: wrap; }
     
-    input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.9rem; flex-grow: 1; outline: none; transition: border-color 0.2s; width: 100%; }
+    input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.85rem; flex-grow: 1; outline: none; transition: border-color 0.2s; width: 100%; }
     input:focus { border-color: var(--accent); }
     
-    button, .btn { padding: 9px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    button, .btn { padding: 9px 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
     button:hover, .btn:hover { opacity: 0.9; transform: translateY(-1px); }
     button:active, .btn:active { transform: translateY(0); }
     .primary { background: var(--accent); color: #0f172a; }
@@ -151,23 +193,23 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     .file-label:hover { border-color: var(--accent); color: var(--text-main); }
     
     /* Tables */
-    .scroll-container { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; }
+    .scroll-container { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; }
     table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     thead th { position: sticky; top: 0; background: #1a2436; z-index: 1; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
     td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; text-align: center; }
     tr:last-child td { border-bottom: none; }
     .col-name { text-align: left; padding-left: 10px; }
-    .col-pin { width: 50px; }
-    .col-note { width: 60px; }
-    .col-midi { width: 50px; }
-    .col-ch { width: 45px; }
-    .col-s-action { width: 120px; }
+    .col-pin { width: 45px; }
+    .col-note { width: 55px; }
+    .col-midi { width: 45px; }
+    .col-ch { width: 40px; }
+    .col-s-action { width: 110px; }
     
     /* Progress Bars */
-    .progress-bg { background: #334155; border-radius: 8px; height: 12px; overflow: hidden; margin: 10px 0; }
+    .progress-bg { background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin: 8px 0; }
     .progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width 0.3s ease; }
     
-    footer { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 40px; margin-bottom: 20px; grid-column: 1 / -1; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 480px; }
   </style>
 </head>
 <body>
@@ -182,14 +224,14 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <!-- 1. Player Control Card -->
   <div class="card">
     <h2>Player Control</h2>
-    <div id="playerStatus" style="font-size: 0.95rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Not playing</div>
+    <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Not playing</div>
     <div class="progress-bg"><div id="playerBar" class="progress-bar"></div></div>
-    <div class="row" style="justify-content: space-between; font-size: 0.8rem; color: var(--text-muted); margin-bottom: 15px;">
+    <div class="row" style="justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
       <span id="timeElapsed">0:00</span>
-      <span id="modeDisplay" style="background: var(--border); padding: 2px 8px; border-radius: 4px; color: var(--accent);">Manual</span>
+      <span id="modeDisplay" style="background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent);">Manual</span>
       <span id="timeRemaining">0:00</span>
     </div>
-    <div class="row" style="justify-content: center; gap: 8px; margin-bottom: 0;">
+    <div class="row" style="justify-content: center; gap: 6px; margin-bottom: 0;">
       <button onclick="sendCommand('prev')" class="primary" style="flex:1;">Prev</button>
       <button onclick="sendCommand('start')" class="primary" style="flex:1.5;" id="btnStart">Play</button>
       <button onclick="sendCommand('next')" class="primary" style="flex:1;">Next</button>
@@ -197,7 +239,14 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 2. MIDI File Manager Card -->
+  <!-- 2. WebSerial Card (System Log) -->
+  <div class="card card-full">
+    <h2>System Log</h2>
+    <div id="logContainer" class="scroll-container" style="background: #0f172a; padding: 10px; font-family: monospace; font-size: 0.75rem; color: #10b981; height: 180px; white-space: pre-wrap;"></div>
+    <button onclick="document.getElementById('logContainer').innerText = ''" class="danger" style="margin-top: 10px;">Clear Log</button>
+  </div>
+
+  <!-- 3. MIDI File Manager Card -->
   <div class="card">
     <h2>MIDI File Manager</h2>
     <div class="row">
@@ -205,19 +254,19 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
       <button onclick="uploadFile()" class="primary">Upload</button>
     </div>
-    <div class="scroll-container" style="flex-grow: 1;">
+    <div class="scroll-container">
       <table>
-        <thead><tr><th class="col-name">Name</th><th style="width:70px;">Size</th><th style="width:70px;">Action</th></tr></thead>
+        <thead><tr><th class="col-name">Name</th><th style="width:65px;">Size</th><th style="width:65px;">Action</th></tr></thead>
         <tbody id="fileBody"></tbody>
       </table>
     </div>
-    <div id="storageInfo" style="margin-top: 10px; font-size: 0.8rem; color: var(--text-muted); text-align: center;"></div>
+    <div id="storageInfo" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); text-align: center;"></div>
   </div>
 
-  <!-- 3. Actuator Active Duration Card -->
+  <!-- 4. Actuator Active Duration Card -->
   <div class="card">
     <h2>Actuator Active Duration</h2>
-    <div style="font-size: 0.9rem; margin-bottom: 12px; color: var(--text-muted);">
+    <div style="font-size: 0.85rem; margin-bottom: 10px; color: var(--text-muted);">
       Current Duration: <strong id="currentTime" style="color: var(--accent);">...</strong> ms
     </div>
     <div class="row" style="margin-bottom: 0;">
@@ -226,20 +275,20 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 4. Actuator Manager Card (Full Width) -->
+  <!-- 5. Actuator Manager Card -->
   <div class="card card-full">
     <h2>Actuator Manager</h2>
-    <div class="row row-wrap" style="gap: 10px; margin-bottom: 15px;">
-      <input type="number" id="sPin" placeholder="GPIO Pin" style="flex: 1; min-width: 100px;" />
-      <input type="text" id="sNote" placeholder="Note (e.g. C4)" style="flex: 1; min-width: 100px;" />
-      <input type="number" id="sMidi" placeholder="MIDI Note Number" style="flex: 1; min-width: 120px;" />
-      <input type="number" id="sChannel" placeholder="MIDI Channel (0=All)" style="flex: 1; min-width: 120px;" />
+    <div class="row row-wrap" style="gap: 8px; margin-bottom: 12px;">
+      <input type="number" id="sPin" placeholder="GPIO Pin" style="flex: 1; min-width: 90px;" />
+      <input type="text" id="sNote" placeholder="Note (e.g. C4)" style="flex: 1; min-width: 90px;" />
+      <input type="number" id="sMidi" placeholder="MIDI Note" style="flex: 1; min-width: 100px;" />
+      <input type="number" id="sChannel" placeholder="MIDI Ch (0=All)" style="flex: 1; min-width: 100px;" />
     </div>
-    <div class="row" style="gap: 10px; margin-bottom: 15px;">
-      <button onclick="backupConfig()" class="primary" style="flex: 1;">Download Backup</button>
+    <div class="row" style="gap: 8px; margin-bottom: 12px;">
+      <button onclick="backupConfig()" class="primary" style="flex: 1;">Backup</button>
       <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
-      <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1;">Upload Backup</button>
-      <button onclick="addSolenoid()" class="primary" style="flex: 1;">Save Actuator</button>
+      <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1;">Restore</button>
+      <button onclick="addSolenoid()" class="primary" style="flex: 1;">Save</button>
     </div>
     <div class="scroll-container">
       <table>
@@ -249,14 +298,14 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 5. WiFi Manager Card -->
+  <!-- 6. WiFi Manager Card -->
   <div class="card">
     <h2>WiFi Manager</h2>
-    <div style="display: flex; flex-direction: column; gap: 10px;">
+    <div style="display: flex; flex-direction: column; gap: 8px;">
       <input type="text" id="wifiSsid" placeholder="SSID" />
       <input type="text" id="wifiPass" placeholder="Password" />
-      <div class="row" style="justify-content: space-between; margin-top: 5px; margin-bottom: 5px;">
-        <label style="font-size: 0.9rem; color: var(--text-muted);">Enable WiFi STA</label>
+      <div class="row" style="justify-content: space-between; margin-top: 4px; margin-bottom: 4px;">
+        <label style="font-size: 0.85rem; color: var(--text-muted);">Enable WiFi STA</label>
         <label class="switch">
           <input type="checkbox" id="wifiEnable">
           <span class="slider"></span>
@@ -266,11 +315,11 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 6. Firmware Update Card (Paling Bawah) -->
+  <!-- 7. Firmware Update Card -->
   <div class="card card-full">
     <h2>Update Firmware</h2>
-    <div style="display: flex; flex-direction: column; gap: 10px;">
-      <div style="font-size: 0.85rem;">Version: <strong style="color: var(--accent);">{{FW_VERSION}}</strong></div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <div style="font-size: 0.8rem;">Version: <strong style="color: var(--accent);">{{FW_VERSION}}</strong></div>
       <div class="row" style="margin-bottom: 0;">
         <label for="otaBinInput" class="file-label" onclick="document.getElementById('otaBinInput').click()">Select .bin File</label>
         <input type="file" id="otaBinInput" accept=".bin" style="display:none;" onchange="document.querySelector('label[for=\'otaBinInput\']').innerText = this.files[0].name" />
@@ -283,11 +332,11 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <footer>
-    &copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat
-  </footer>
-
 </div>
+
+<footer>
+  &copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat
+</footer>
 
 <script>
 const noteMap = {{NOTE_MAP}};
@@ -351,7 +400,7 @@ async function loadData() {
     const resS = await fetch('/api/solenoids?t=' + t);
     const solenoids = await resS.json();
     const sBody = document.getElementById('solenoidBody'); sBody.innerHTML = '';
-    solenoids.forEach(s => { sBody.innerHTML += `<tr><td class="col-pin">${s.pin}</td><td class="col-note">${s.note}</td><td class="col-midi">${s.midi}</td><td class="col-ch">${s.ch}</td><td class="col-s-action"><button class="primary" style="padding: 3px 8px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button><button class="danger" style="padding: 3px 8px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button></td></tr>`; });
+    solenoids.forEach(s => { sBody.innerHTML += `<tr><td class="col-pin">${s.pin}</td><td class="col-note">${s.note}</td><td class="col-midi">${s.midi}</td><td class="col-ch">${s.ch}</td><td class="col-s-action"><button class="primary" style="padding: 3px 6px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button></td></tr>`; });
     } catch (e) { console.error("Solenoids load error", e); }
 
     // Fetch Files
@@ -359,7 +408,7 @@ async function loadData() {
         const resF = await fetch('/api/files?t=' + t); 
         const filesRes = await resF.json();
         const fBody = document.getElementById('fileBody'); fBody.innerHTML = '';
-        filesRes.files.forEach(f => { fBody.innerHTML += `<tr><td class="col-name">${f.name}</td><td>${formatSize(f.size)}</td><td><button class="danger" style="padding: 3px 8px; font-size: 0.7rem;" onclick="deleteFile('${f.name}')">Delete</button></td></tr>`; });
+        filesRes.files.forEach(f => { fBody.innerHTML += `<tr><td class="col-name">${f.name}</td><td>${formatSize(f.size)}</td><td><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="deleteFile('${f.name}')">Delete</button></td></tr>`; });
         const sInfo = document.getElementById('storageInfo');
         if (filesRes.storage) {
             const used = filesRes.storage.total - filesRes.storage.free;
@@ -454,6 +503,28 @@ async function saveWifi() {
 }
 async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
 setInterval(loadData, 1000); loadData(); loadWifi();
+
+// WebSerial WebSocket Setup dengan Auto-Reconnect
+function initWebSocket() {
+    const socket = new WebSocket('ws://' + window.location.hostname + '/ws');
+    socket.onopen = () => {
+        console.log("WebSocket Connected");
+    };
+    socket.onmessage = (event) => {
+        const logContainer = document.getElementById('logContainer');
+        if (logContainer) {
+            logContainer.innerText += event.data;
+            if (logContainer.innerText.length > 5000) {
+                logContainer.innerText = logContainer.innerText.substring(logContainer.innerText.length - 5000);
+            }
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    };
+    socket.onclose = () => {
+        setTimeout(initWebSocket, 2000); // Reconnect otomatis setiap 2 detik jika terputus
+    };
+}
+initWebSocket();
 </script>
 </body>
 </html>
@@ -752,10 +823,51 @@ String sanitizeFilename(String filename) {
   return clean;
 }
 
+// Handler khusus WebSocket
+esp_err_t ws_handler(httpd_req_t *req) {
+  int fd = httpd_req_to_sockfd(req);
+
+  if (req->method == HTTP_GET) {
+    if (std::find(ws_clients.begin(), ws_clients.end(), fd) == ws_clients.end()) {
+      ws_clients.push_back(fd);
+      Serial.printf("[WS] Client connected: %d\n", fd);
+    }
+    return ESP_OK;
+  }
+
+  httpd_ws_frame_t ws_pkt;
+  memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+  esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
+  if (ret != ESP_OK) return ret;
+
+  if (ws_pkt.type == HTTPD_WS_TYPE_CLOSE) {
+    auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
+    if (it != ws_clients.end()) {
+      ws_clients.erase(it);
+      Serial.printf("[WS] Client disconnected: %d\n", fd);
+    }
+    return ESP_OK;
+  }
+
+  if (ws_pkt.len > 0) {
+    uint8_t *buf = (uint8_t *)malloc(ws_pkt.len + 1);
+    if (buf) {
+      ws_pkt.payload = buf;
+      ret = httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+      if (ret == ESP_OK) {
+        buf[ws_pkt.len] = 0;
+      }
+      free(buf);
+    }
+  }
+  return ESP_OK;
+}
+
 void WebServerManager::beginAPMinimal() {
   if (active) return;
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
+  config.stack_size = 8192;
   if (httpd_start(&server, &config) != ESP_OK) return;
 
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
@@ -772,7 +884,6 @@ void WebServerManager::beginAPMinimal() {
 void WebServerManager::beginSTAFull() {
   if (active) return;
 
-  // Tunggu sejenak untuk memastikan WiFi benar-benar terhubung
   vTaskDelay(pdMS_TO_TICKS(2000));
 
   configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
@@ -785,6 +896,7 @@ void WebServerManager::beginSTAFull() {
   config.server_port = 80;
   config.max_uri_handlers = 20;
   config.max_open_sockets = 7;
+  config.stack_size = 8192;
   if (httpd_start(&server, &config) != ESP_OK) return;
 
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
@@ -858,6 +970,16 @@ void WebServerManager::beginSTAFull() {
                          },
                           nullptr };
 
+  httpd_uri_t ws_uri = {
+    .uri = "/ws",
+    .method = HTTP_GET,
+    .handler = ws_handler,
+    .user_ctx = NULL,
+    .is_websocket = true,
+    .handle_ws_control_frames = false,
+    .supported_subprotocol = NULL
+  };
+
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &upload_uri);
   httpd_register_uri_handler(server, &solenoids_get_uri);
@@ -874,6 +996,7 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &player_get_uri);
   httpd_register_uri_handler(server, &player_cmd_uri);
   httpd_register_uri_handler(server, &ota_uri);
+  httpd_register_uri_handler(server, &ws_uri);
 
   active = true;
 }

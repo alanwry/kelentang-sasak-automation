@@ -2,12 +2,12 @@
 #include "sdcard.h"
 #include "pins.h"
 #include "player.h"
+#include "webserver.h"
 
 SDCardManager sdcard;
 static bool sdInserted = true;
 
 bool SDCardManager::begin() {
-  // 1. Check Mutex: Create ONLY if not exists
   if (!mutex) {
     mutex = xSemaphoreCreateMutex();
     if (!mutex)
@@ -22,10 +22,8 @@ bool SDCardManager::begin() {
     return false;
   }
 
-  // 2. Ensure SD is ended first (to clear old state)
   SD.end();
 
-  // 3. Re-initialize SPI
   SPI.begin(SD_SCK, SD_MISO, SD_MOSI, PIN_SD_CS);
 
   bool ok = false;
@@ -48,14 +46,14 @@ void SDCardManager::update() {
   bool currentDetected = (digitalRead(PIN_SD_DET) == LOW);
   if (currentDetected != sdInserted) {
     sdInserted = currentDetected;
-    Serial.printf("[SDCARD] Physical status changed: %s\n", sdInserted ? "INSERTED" : "REMOVED");
+    LOG("[SDCARD] Physical status changed: %s\n", sdInserted ? "INSERTED" : "REMOVED");
     if (sdInserted) {
       if (sdcard.begin()) {
         detected = true;
-        Serial.println("[SDCARD] Successfully re-initialized");
+        LOG("[SDCARD] Successfully re-initialized\n");
       } else {
         detected = false;
-        Serial.println("[SDCARD] Failed to re-initialize");
+        LOG("[SDCARD] Failed to re-initialize\n");
       }
     } else {
       player.stop();
