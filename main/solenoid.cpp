@@ -54,12 +54,9 @@ SolenoidManager solenoid;
 
 void SolenoidManager::begin() {
   count = 0;
-  if (!loadConfig()) {
-    LOG("[SOLENOID] No config file, using defaults\n");
-    configError = true;
-  } else {
-    configError = false;
-  }
+  // Jangan set configError = true jika file tidak ada, 
+  // karena mungkin SD card belum terpasang.
+  loadConfig();
 }
 
 void SolenoidManager::test(uint8_t pin) {

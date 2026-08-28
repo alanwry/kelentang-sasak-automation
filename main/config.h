@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 
-#define FW_VERSION "3.0.0"
+#define FW_VERSION "2.5.0"
 
 #define MAX_SOLENOID 24
 

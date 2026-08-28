@@ -18,9 +18,25 @@
 #include <algorithm>
 #include <NetBIOS.h>
 
-// WebSerial support
+#include <driver/temperature_sensor.h>
+
 static std::vector<int> ws_clients;
 httpd_handle_t server = nullptr;
+
+static temperature_sensor_handle_t tempHandle = NULL;
+static bool tempInit = false;
+
+float getChipTemperature() {
+    if (!tempInit) {
+        temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
+        if (temperature_sensor_install(&cfg, &tempHandle) != ESP_OK) return NAN;
+        if (temperature_sensor_enable(tempHandle) != ESP_OK) return NAN;
+        tempInit = true;
+    }
+    float temp;
+    if (temperature_sensor_get_celsius(tempHandle, &temp) == ESP_OK) return temp;
+    return NAN;
+}
 
 void sendLogToClients(const char *message) {
   if (ws_clients.empty() || server == nullptr) return;
@@ -33,14 +49,13 @@ void sendLogToClients(const char *message) {
 
     esp_err_t ret = httpd_ws_send_frame_async(server, *it, &ws_pkt);
     if (ret != ESP_OK) {
-      it = ws_clients.erase(it);  // Hapus socket jika gagal kirim / terputus
+      it = ws_clients.erase(it);  
     } else {
       ++it;
     }
   }
 }
 
-// Implementasi LOG Global
 void LOG(const char *format, ...) {
   char buf[256];
   va_list args;
@@ -136,7 +151,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>ESP Control Dashboard</title>
+  <title>ESP32-S3 WROOM-1U</title>
   <style>
     :root { 
       --bg-color: #0f172a; 
@@ -215,8 +230,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <body>
 
 <header>
-  <h1>ESP Dashboard</h1>
-  <span style="font-size: 0.8rem; color: var(--text-muted);">Status: <span style="color: #4ade80;">● Connected</span></span>
+  <h1>KELENTANG ROBOT</h1>
+  <span style="font-size: 0.8rem; color: var(--text-muted);"><span id="tempDisplay">--.-°C</span></span>
 </header>
 
 <div class="dashboard-grid">
@@ -228,7 +243,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     <div class="progress-bg"><div id="playerBar" class="progress-bar"></div></div>
     <div class="row" style="justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
       <span id="timeElapsed">0:00</span>
-      <span id="modeDisplay" style="background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent);">Manual</span>
+      <span id="modeDisplay" style="background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent);">PlayOnce</span>
       <span id="timeRemaining">0:00</span>
     </div>
     <div class="row" style="justify-content: center; gap: 6px; margin-bottom: 0;">
@@ -381,13 +396,20 @@ async function sendCommand(cmd) {
 async function loadData() {
     const t = Date.now();
     
+    // Fetch Temperature
+    try {
+        const resTemp = await fetch('/api/temp?t=' + t);
+        const temp = await resTemp.text();
+        document.getElementById('tempDisplay').innerText = temp;
+    } catch (e) { console.error("Temp load error", e); }
+    
     // Fetch Player
     try {
         const resP = await fetch('/api/player?t=' + t); 
         const player = await resP.json();
         document.getElementById('playerStatus').innerText = player.playing ? "Playing: " + player.file : (player.paused ? "Paused: " + player.file : "Stopped");
         document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
-        document.getElementById('modeDisplay').innerText = player.auto ? "Auto Loop" : "Manual";
+        document.getElementById('modeDisplay').innerText = player.auto ? "Continuous" : "PlayOnce";
         const barWidth = player.duration > 0 ? (player.elapsed / player.duration * 100) : 0;
         document.getElementById('playerBar').style.width = barWidth + '%';
         const remaining = Math.max(0, player.duration - player.elapsed);
@@ -593,7 +615,14 @@ esp_err_t upload_handler(httpd_req_t *req) {
 
 esp_err_t api_solenoids_handler(httpd_req_t *req) {
   if (req->method == HTTP_GET) {
-    if (digitalRead(PIN_SD_DET) == HIGH) return httpd_resp_send(req, "[]", 2);
+    if (digitalRead(PIN_SD_DET) == HIGH) {
+        // SD Card dilepas, hapus list dan kirim kosong
+        while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
+        return httpd_resp_send(req, "[]", 2);
+    }
+
+    if (solenoid.getCount() == 0) solenoid.loadConfig(); // Coba reload jika kosong
+    
     String json = "[";
     Solenoid *items = solenoid.getItems();
     for (uint8_t i = 0; i < solenoid.getCount(); i++) {
@@ -886,11 +915,17 @@ void WebServerManager::beginSTAFull() {
 
   vTaskDelay(pdMS_TO_TICKS(2000));
 
-  configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+  configTime(8 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
   if (MDNS.begin("mydashboard")) {
     MDNS.addService("http", "tcp", 80);
   }
+  NBNS.begin("mydashboard");
+
+  // Inisialisasi Sensor Suhu
+  temperature_sensor_config_t ts_cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
+  temperature_sensor_install(&ts_cfg, &tempHandle);
+  temperature_sensor_enable(tempHandle);
 
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
@@ -901,6 +936,17 @@ void WebServerManager::beginSTAFull() {
 
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
   httpd_uri_t upload_uri = { "/upload", HTTP_POST, upload_handler, nullptr };
+  httpd_uri_t temp_uri = { "/api/temp", HTTP_GET, [](httpd_req_t *req) {
+                            float temp = 0;
+                            if (tempHandle != NULL) {
+                                temperature_sensor_get_celsius(tempHandle, &temp);
+                            }
+                            // Format to 2 decimal places
+                            char buf[16];
+                            snprintf(buf, sizeof(buf), "%.2f°C", temp);
+                            httpd_resp_set_type(req, "text/plain");
+                            return httpd_resp_send(req, buf, strlen(buf));
+                          }, nullptr };
   httpd_uri_t solenoids_get_uri = { "/api/solenoids", HTTP_GET, api_solenoids_handler, nullptr };
   httpd_uri_t solenoids_post_uri = { "/api/solenoids", HTTP_POST, api_solenoids_handler, nullptr };
   httpd_uri_t solenoid_test_uri = { "/api/solenoid/test", HTTP_POST, api_solenoid_test_handler, nullptr };
@@ -959,13 +1005,23 @@ void WebServerManager::beginSTAFull() {
                            }
                            free(buf);
                            if (Update.end()) {
-                             vTaskDelay(pdMS_TO_TICKS(1000));
-                             Preferences prefs;
-                             prefs.begin("ota", false);
-                             prefs.putString("last", "Updated");
-                             prefs.end();
-                             ESP.restart();
-                             return httpd_resp_send(req, "OK", 2);
+                            vTaskDelay(pdMS_TO_TICKS(1000));
+
+                            struct tm timeinfo;
+                            char timeStr[32];
+                            if (getLocalTime(&timeinfo)) {
+                              strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
+                            } else {
+                              strcpy(timeStr, "Unknown");
+                            }
+
+                            Preferences prefs;
+                            prefs.begin("ota", false);
+                            prefs.clear(); // Ensure old data is cleared
+                            prefs.putString("last", timeStr);
+                            prefs.end();
+                            ESP.restart();
+                            return httpd_resp_send(req, "OK", 2);
                            } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
                          },
                           nullptr };
@@ -982,6 +1038,7 @@ void WebServerManager::beginSTAFull() {
 
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &upload_uri);
+  httpd_register_uri_handler(server, &temp_uri);
   httpd_register_uri_handler(server, &solenoids_get_uri);
   httpd_register_uri_handler(server, &solenoids_post_uri);
   httpd_register_uri_handler(server, &solenoid_test_uri);
