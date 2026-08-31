@@ -19,41 +19,52 @@
 #include <NetBIOS.h>
 
 #include <driver/temperature_sensor.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 static std::vector<int> ws_clients;
+static SemaphoreHandle_t ws_mutex = NULL;
 httpd_handle_t server = nullptr;
 
 static temperature_sensor_handle_t tempHandle = NULL;
 static bool tempInit = false;
 
 float getChipTemperature() {
-    if (!tempInit) {
-        temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
-        if (temperature_sensor_install(&cfg, &tempHandle) != ESP_OK) return NAN;
-        if (temperature_sensor_enable(tempHandle) != ESP_OK) return NAN;
-        tempInit = true;
-    }
-    float temp;
-    if (temperature_sensor_get_celsius(tempHandle, &temp) == ESP_OK) return temp;
-    return NAN;
+  if (!tempInit) {
+    temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
+    if (temperature_sensor_install(&cfg, &tempHandle) != ESP_OK) return NAN;
+    if (temperature_sensor_enable(tempHandle) != ESP_OK) return NAN;
+    tempInit = true;
+  }
+  float temp;
+  if (temperature_sensor_get_celsius(tempHandle, &temp) == ESP_OK) return temp;
+  return NAN;
 }
 
 void sendLogToClients(const char *message) {
-  if (ws_clients.empty() || server == nullptr) return;
-  for (auto it = ws_clients.begin(); it != ws_clients.end();) {
-    httpd_ws_frame_t ws_pkt;
-    memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.payload = (uint8_t *)message;
-    ws_pkt.len = strlen(message);
-    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+  if (server == nullptr) return;
 
-    esp_err_t ret = httpd_ws_send_frame_async(server, *it, &ws_pkt);
-    if (ret != ESP_OK) {
-      it = ws_clients.erase(it);  
-    } else {
-      ++it;
+  if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+
+  if (!ws_clients.empty()) {
+    for (auto it = ws_clients.begin(); it != ws_clients.end();) {
+      httpd_ws_frame_t ws_pkt;
+      memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+      ws_pkt.payload = (uint8_t *)message;
+      ws_pkt.len = strlen(message);
+      ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+
+      esp_err_t ret = httpd_ws_send_frame_async(server, *it, &ws_pkt);
+      if (ret != ESP_OK) {
+        Serial.printf("[WS] Client disconnected (send failed): %d\n", *it);
+        it = ws_clients.erase(it);
+      } else {
+        ++it;
+      }
     }
   }
+
+  if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
 }
 
 void LOG(const char *format, ...) {
@@ -72,7 +83,7 @@ void LOG(const char *format, ...) {
 }
 
 extern void triggerBuzzer(uint16_t duration);
-String sanitizeFilename(String filename); 
+String sanitizeFilename(String filename);
 
 WebServerManager webServer;
 namespace {
@@ -526,11 +537,12 @@ async function saveWifi() {
 async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
 setInterval(loadData, 1000); loadData(); loadWifi();
 
-// WebSerial WebSocket Setup dengan Auto-Reconnect
+// WebSerial WebSocket Setup dengan Auto-Reconnect & Ping Inisialisasi
 function initWebSocket() {
     const socket = new WebSocket('ws://' + window.location.hostname + '/ws');
     socket.onopen = () => {
         console.log("WebSocket Connected");
+        socket.send("ping");
     };
     socket.onmessage = (event) => {
         const logContainer = document.getElementById('logContainer');
@@ -543,7 +555,7 @@ function initWebSocket() {
         }
     };
     socket.onclose = () => {
-        setTimeout(initWebSocket, 2000); // Reconnect otomatis setiap 2 detik jika terputus
+        setTimeout(initWebSocket, 2000);
     };
 }
 initWebSocket();
@@ -616,13 +628,12 @@ esp_err_t upload_handler(httpd_req_t *req) {
 esp_err_t api_solenoids_handler(httpd_req_t *req) {
   if (req->method == HTTP_GET) {
     if (digitalRead(PIN_SD_DET) == HIGH) {
-        // SD Card dilepas, hapus list dan kirim kosong
-        while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
-        return httpd_resp_send(req, "[]", 2);
+      while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
+      return httpd_resp_send(req, "[]", 2);
     }
 
-    if (solenoid.getCount() == 0) solenoid.loadConfig(); // Coba reload jika kosong
-    
+    if (solenoid.getCount() == 0) solenoid.loadConfig();
+
     String json = "[";
     Solenoid *items = solenoid.getItems();
     for (uint8_t i = 0; i < solenoid.getCount(); i++) {
@@ -855,13 +866,12 @@ String sanitizeFilename(String filename) {
 esp_err_t ws_handler(httpd_req_t *req) {
   int fd = httpd_req_to_sockfd(req);
 
-  if (req->method == HTTP_GET) {
-    if (std::find(ws_clients.begin(), ws_clients.end(), fd) == ws_clients.end()) {
-      ws_clients.push_back(fd);
-      Serial.printf("[WS] Client connected: %d\n", fd);
-    }
-    return ESP_OK;
+  if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+  if (std::find(ws_clients.begin(), ws_clients.end(), fd) == ws_clients.end()) {
+    ws_clients.push_back(fd);
+    Serial.printf("[WS] Client connected: %d\n", fd);
   }
+  if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
 
   httpd_ws_frame_t ws_pkt;
   memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
@@ -869,11 +879,13 @@ esp_err_t ws_handler(httpd_req_t *req) {
   if (ret != ESP_OK) return ret;
 
   if (ws_pkt.type == HTTPD_WS_TYPE_CLOSE) {
+    if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
     auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
     if (it != ws_clients.end()) {
       ws_clients.erase(it);
       Serial.printf("[WS] Client disconnected: %d\n", fd);
     }
+    if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
     return ESP_OK;
   }
 
@@ -893,6 +905,8 @@ esp_err_t ws_handler(httpd_req_t *req) {
 
 void WebServerManager::beginAPMinimal() {
   if (active) return;
+  if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
+
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
   config.stack_size = 8192;
@@ -911,6 +925,8 @@ void WebServerManager::beginAPMinimal() {
 
 void WebServerManager::beginSTAFull() {
   if (active) return;
+
+  if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
 
   vTaskDelay(pdMS_TO_TICKS(2000));
 
@@ -937,13 +953,14 @@ void WebServerManager::beginSTAFull() {
   httpd_uri_t temp_uri = { "/api/temp", HTTP_GET, [](httpd_req_t *req) {
                             float temp = 0;
                             if (tempHandle != NULL) {
-                                temperature_sensor_get_celsius(tempHandle, &temp);
+                              temperature_sensor_get_celsius(tempHandle, &temp);
                             }
                             char buf[16];
                             snprintf(buf, sizeof(buf), "%.2f°C", temp);
                             httpd_resp_set_type(req, "text/plain");
                             return httpd_resp_send(req, buf, strlen(buf));
-                          }, nullptr };
+                          },
+                           nullptr };
   httpd_uri_t solenoids_get_uri = { "/api/solenoids", HTTP_GET, api_solenoids_handler, nullptr };
   httpd_uri_t solenoids_post_uri = { "/api/solenoids", HTTP_POST, api_solenoids_handler, nullptr };
   httpd_uri_t solenoid_test_uri = { "/api/solenoid/test", HTTP_POST, api_solenoid_test_handler, nullptr };
@@ -1002,23 +1019,23 @@ void WebServerManager::beginSTAFull() {
                            }
                            free(buf);
                            if (Update.end()) {
-                            vTaskDelay(pdMS_TO_TICKS(1000));
+                             vTaskDelay(pdMS_TO_TICKS(1000));
 
-                            struct tm timeinfo;
-                            char timeStr[32];
-                            if (getLocalTime(&timeinfo)) {
-                              strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
-                            } else {
-                              strcpy(timeStr, "Unknown");
-                            }
+                             struct tm timeinfo;
+                             char timeStr[32];
+                             if (getLocalTime(&timeinfo)) {
+                               strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
+                             } else {
+                               strcpy(timeStr, "Unknown");
+                             }
 
-                            Preferences prefs;
-                            prefs.begin("ota", false);
-                            prefs.clear(); // Ensure old data is cleared
-                            prefs.putString("last", timeStr);
-                            prefs.end();
-                            ESP.restart();
-                            return httpd_resp_send(req, "OK", 2);
+                             Preferences prefs;
+                             prefs.begin("ota", false);
+                             prefs.clear();
+                             prefs.putString("last", timeStr);
+                             prefs.end();
+                             ESP.restart();
+                             return httpd_resp_send(req, "OK", 2);
                            } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
                          },
                           nullptr };
