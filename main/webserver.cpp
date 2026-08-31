@@ -72,7 +72,7 @@ void LOG(const char *format, ...) {
 }
 
 extern void triggerBuzzer(uint16_t duration);
-String sanitizeFilename(String filename);  // Forward declaration
+String sanitizeFilename(String filename); 
 
 WebServerManager webServer;
 namespace {
@@ -852,7 +852,6 @@ String sanitizeFilename(String filename) {
   return clean;
 }
 
-// Handler khusus WebSocket
 esp_err_t ws_handler(httpd_req_t *req) {
   int fd = httpd_req_to_sockfd(req);
 
@@ -922,7 +921,6 @@ void WebServerManager::beginSTAFull() {
   }
   NBNS.begin("mydashboard");
 
-  // Inisialisasi Sensor Suhu
   temperature_sensor_config_t ts_cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
   temperature_sensor_install(&ts_cfg, &tempHandle);
   temperature_sensor_enable(tempHandle);
@@ -941,7 +939,6 @@ void WebServerManager::beginSTAFull() {
                             if (tempHandle != NULL) {
                                 temperature_sensor_get_celsius(tempHandle, &temp);
                             }
-                            // Format to 2 decimal places
                             char buf[16];
                             snprintf(buf, sizeof(buf), "%.2f°C", temp);
                             httpd_resp_set_type(req, "text/plain");
