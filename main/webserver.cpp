@@ -537,14 +537,38 @@ async function saveWifi() {
 async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
 setInterval(loadData, 1000); loadData(); loadWifi();
 
-// WebSerial WebSocket Setup dengan Auto-Reconnect & Ping Inisialisasi
+// WebSerial WebSocket Setup dengan Heartbeat Auto-Reconnect
+let ws = null;
+let wsPingInterval = null;
+
 function initWebSocket() {
-    const socket = new WebSocket('ws://' + window.location.hostname + '/ws');
-    socket.onopen = () => {
+    // Jika socket sudah terhubung atau sedang menghubungkan, batalkan
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+
+    ws = new WebSocket('ws://' + window.location.hostname + '/ws');
+
+    ws.onopen = () => {
         console.log("WebSocket Connected");
-        socket.send("ping");
+        ws.send("ping");
+
+        // Kirim Ping setiap 3 detik untuk memastikan koneksi masih hidup
+        if (wsPingInterval) clearInterval(wsPingInterval);
+        wsPingInterval = setInterval(() => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                try {
+                    ws.send("ping");
+                } catch (e) {
+                    ws.close(); // Paksa close jika gagal send
+                }
+            } else {
+                if (ws) ws.close();
+            }
+        }, 3000);
     };
-    socket.onmessage = (event) => {
+
+    ws.onmessage = (event) => {
         const logContainer = document.getElementById('logContainer');
         if (logContainer) {
             logContainer.innerText += event.data;
@@ -554,10 +578,19 @@ function initWebSocket() {
             logContainer.scrollTop = logContainer.scrollHeight;
         }
     };
-    socket.onclose = () => {
-        setTimeout(initWebSocket, 2000);
+
+    ws.onerror = (err) => {
+        console.error("WS Error:", err);
+        if (ws) ws.close(); // Trigger onclose saat terjadi error
+    };
+
+    ws.onclose = () => {
+        if (wsPingInterval) clearInterval(wsPingInterval);
+        console.log("WS Disconnected, reconnecting in 2s...");
+        setTimeout(initWebSocket, 2000); // Reconnect otomatis
     };
 }
+
 initWebSocket();
 </script>
 </body>

@@ -255,6 +255,8 @@ bool MidiFile::parse() {
           data2 = midiFile.read();
           trackBytesRead += 2;
 
+          LOG("[MIDI] Note On - Note: %d, Velocity: %d, Channel: %d\n", data1, data2, (statusByte & 0x0F) + 1);
+
           if (data2 > 0) {
             Solenoid *items = solenoid.getItems();
             uint8_t channel = (statusByte & 0x0F) + 1;
@@ -269,6 +271,9 @@ bool MidiFile::parse() {
                 eventQueue.push(evt);
                 eventCount++;
                 break;
+              }
+              if (i == solenoid.getCount() - 1) {
+                LOG("[MIDI] Note not mapped: Note %d, Channel %d\n", data1, channel);
               }
             }
           }
