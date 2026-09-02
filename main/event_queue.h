@@ -24,11 +24,11 @@ public:
   void sort();
 
 private:
-  static constexpr uint8_t MAX_EVENTS = 128;
+  static constexpr uint16_t MAX_EVENTS = 4096;
   MidiEvent buffer[MAX_EVENTS];
-  uint8_t head = 0;
-  uint8_t tail = 0;
-  uint8_t count = 0;
+  uint16_t head = 0;
+  uint16_t tail = 0;
+  uint16_t count = 0;
 };
 
 extern EventQueue eventQueue;

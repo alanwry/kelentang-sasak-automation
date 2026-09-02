@@ -261,11 +261,8 @@ bool MidiFile::parse() {
             Solenoid *items = solenoid.getItems();
             uint8_t channel = (statusByte & 0x0F) + 1;
 
-            bool mapped = false;
             for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-              LOG("[DEBUG] Checking solenoid %d: note %d, chan %d against midi %d, chan %d\n", i, items[i].getMidiNote(), items[i].getMidiChannel(), data1, channel);
               if (items[i].getMidiNote() == data1 && (items[i].getMidiChannel() == 0 || items[i].getMidiChannel() == channel)) {
-                LOG("[DEBUG] Solenoid %d matched!\n", i);
                 MidiEvent evt;
                 evt.timeUS = (absoluteTicks * tempoUsPerQuarter) / division;
                 evt.type = EVENT_NOTE_ON;
@@ -273,11 +270,7 @@ bool MidiFile::parse() {
                 evt.solenoidId = i;
                 eventQueue.push(evt);
                 eventCount++;
-                mapped = true;
               }
-            }
-            if (!mapped) {
-              LOG("[MIDI] Note not mapped: Note %d, Channel %d\n", data1, channel);
             }
           }
           break;

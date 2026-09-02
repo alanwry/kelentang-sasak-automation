@@ -21,10 +21,37 @@
 #include <driver/temperature_sensor.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include <freertos/queue.h>
 
 static std::vector<int> ws_clients;
 static SemaphoreHandle_t ws_mutex = NULL;
+static QueueHandle_t log_queue = NULL;
 httpd_handle_t server = nullptr;
+
+static void ws_sender_task(void *pvParameters) {
+  char msg[256];
+  while (true) {
+    if (xQueueReceive(log_queue, msg, portMAX_DELAY)) {
+      if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+      if (!ws_clients.empty()) {
+        for (auto it = ws_clients.begin(); it != ws_clients.end();) {
+          httpd_ws_frame_t ws_pkt;
+          memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
+          ws_pkt.payload = (uint8_t *)msg;
+          ws_pkt.len = strlen(msg);
+          ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+
+          if (httpd_ws_send_frame_async(server, *it, &ws_pkt) != ESP_OK) {
+            it = ws_clients.erase(it);
+          } else {
+            ++it;
+          }
+        }
+      }
+      if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
+    }
+  }
+}
 
 static temperature_sensor_handle_t tempHandle = NULL;
 static bool tempInit = false;
@@ -42,29 +69,9 @@ float getChipTemperature() {
 }
 
 void sendLogToClients(const char *message) {
-  if (server == nullptr) return;
-
-  if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
-
-  if (!ws_clients.empty()) {
-    for (auto it = ws_clients.begin(); it != ws_clients.end();) {
-      httpd_ws_frame_t ws_pkt;
-      memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-      ws_pkt.payload = (uint8_t *)message;
-      ws_pkt.len = strlen(message);
-      ws_pkt.type = HTTPD_WS_TYPE_TEXT;
-
-      esp_err_t ret = httpd_ws_send_frame_async(server, *it, &ws_pkt);
-      if (ret != ESP_OK) {
-        Serial.printf("[WS] Client disconnected (send failed): %d\n", *it);
-        it = ws_clients.erase(it);
-      } else {
-        ++it;
-      }
-    }
+  if (log_queue != NULL) {
+    xQueueSend(log_queue, message, 0);
   }
-
-  if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
 }
 
 void LOG(const char *format, ...) {
@@ -78,7 +85,6 @@ void LOG(const char *format, ...) {
 
   String msg(buf);
   if (!msg.endsWith("\n")) msg += "\n";
-
   sendLogToClients(msg.c_str());
 }
 
@@ -939,10 +945,14 @@ esp_err_t ws_handler(httpd_req_t *req) {
 void WebServerManager::beginAPMinimal() {
   if (active) return;
   if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
+  if (log_queue == NULL) {
+    log_queue = xQueueCreate(20, 256);
+    xTaskCreate(ws_sender_task, "ws_sender", 4096, NULL, 1, NULL);
+  }
 
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
-  config.stack_size = 8192;
+  config.stack_size = 16384;
   if (httpd_start(&server, &config) != ESP_OK) return;
 
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
@@ -960,6 +970,10 @@ void WebServerManager::beginSTAFull() {
   if (active) return;
 
   if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
+  if (log_queue == NULL) {
+    log_queue = xQueueCreate(20, 256);
+    xTaskCreate(ws_sender_task, "ws_sender", 4096, NULL, 1, NULL);
+  }
 
   vTaskDelay(pdMS_TO_TICKS(2000));
 
@@ -978,7 +992,7 @@ void WebServerManager::beginSTAFull() {
   config.server_port = 80;
   config.max_uri_handlers = 20;
   config.max_open_sockets = 7;
-  config.stack_size = 8192;
+  config.stack_size = 16384;
   if (httpd_start(&server, &config) != ESP_OK) return;
 
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };

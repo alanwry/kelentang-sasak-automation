@@ -31,21 +31,12 @@ void EventQueue::push(const MidiEvent &event) {
   buffer[tail] = event;
   tail = (tail + 1) % MAX_EVENTS;
   count++;
-  static bool logged = false;
-  if (!logged) {
-    LOG("[QUEUE]: MIDI event queued\n");
-    logged = true;
-  }
 }
 
 void EventQueue::clear() {
   head = 0;
   tail = 0;
   count = 0;
-  static bool logged = false;
-  if (logged) {
-    logged = false;
-  }
 }
 
 bool EventQueue::empty() const {
@@ -55,14 +46,14 @@ bool EventQueue::empty() const {
 void EventQueue::sort() {
   if (count <= 1) return;
 
-  MidiEvent temp[MAX_EVENTS];
-  uint8_t current = head;
-  for (uint8_t i = 0; i < count; i++) {
+  MidiEvent *temp = new MidiEvent[count];
+  uint16_t current = head;
+  for (uint16_t i = 0; i < count; i++) {
     temp[i] = buffer[current];
     current = (current + 1) % MAX_EVENTS;
   }
 
-  for (uint8_t i = 1; i < count; i++) {
+  for (uint16_t i = 1; i < count; i++) {
     MidiEvent key = temp[i];
     int16_t j = i - 1;
     while (j >= 0 && temp[j].timeUS > key.timeUS) {
@@ -72,13 +63,13 @@ void EventQueue::sort() {
     temp[j + 1] = key;
   }
 
-  for (uint8_t i = 0; i < count; i++) {
+  for (uint16_t i = 0; i < count; i++) {
     buffer[i] = temp[i];
   }
+
+  delete[] temp;
 
   head = 0;
   tail = count;
   if (tail >= MAX_EVENTS) tail = 0;
-
-  LOG("[QUEUE] Sorted %d events\n", count);
 }
