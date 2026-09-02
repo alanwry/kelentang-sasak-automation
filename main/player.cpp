@@ -216,6 +216,7 @@ void Player::update() {
     if (evtData.timeUS > elapsed) break;
     eventQueue.pop(evtData);
     if (evtData.type == EVENT_NOTE_ON) {
+      LOG("[PLAYER] Triggering Solenoid %d for Note %d\n", evtData.solenoidId, evtData.note);
       solenoid.hit(evtData.solenoidId, player.getSolenoidTime());
     }
   }

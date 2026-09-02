@@ -516,7 +516,7 @@ async function addSolenoid() {
   
   if(!note) note = '-';
   const resS = await fetch('/api/solenoids'); let solenoids = await resS.json();
-  if (solenoids.some(s => s.pin === pin || (s.midi === midi && s.ch === ch))) { alert('GPIO or MIDI Note/Channel combination is already used!'); return; }
+  if (solenoids.some(s => s.pin === pin)) { alert('GPIO is already used!'); return; }
   solenoids.push({pin: pin, note: note, midi: midi, ch: ch});
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
   document.getElementById('sPin').value = ''; document.getElementById('sNote').value = ''; document.getElementById('sMidi').value = ''; document.getElementById('sChannel').value = '';
