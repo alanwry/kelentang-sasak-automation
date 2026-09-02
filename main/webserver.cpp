@@ -111,7 +111,15 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
     h2 { margin-top: 0; color: var(--accent); font-size: 1.3rem; margin-bottom: 20px; text-align: center; }
     .input-group { display: flex; flex-direction: column; gap: 12px; }
     input[type="text"] { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: #0f172a; color: white; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
-    input[type="text"]:focus { border-color: var(--accent); }
+    
+    /* Hide spinner on number inputs */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    
     .row { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
     .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
     .switch input { opacity: 0; width: 0; height: 0; }
@@ -142,6 +150,21 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 </div>
 <footer>&copy; 2026 AN ELECTRONIC | Mataram, NTB</footer>
 <script>
+// Mematikan scroll wheel dan panah keyboard pada input number
+document.addEventListener("wheel", function(e){
+    if(document.activeElement && document.activeElement.type === "number"){
+        e.preventDefault();
+    }
+}, { passive: false });
+
+document.addEventListener("keydown", function(e){
+    if(document.activeElement && document.activeElement.type === "number"){
+        if(e.key === "ArrowUp" || e.key === "ArrowDown"){
+            e.preventDefault();
+        }
+    }
+});
+
 async function loadWifi() {
     const res = await fetch('/api/wifi');
     const config = await res.json();
@@ -204,6 +227,15 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     .row-wrap { flex-wrap: wrap; }
     
     input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.85rem; flex-grow: 1; outline: none; transition: border-color 0.2s; width: 100%; }
+    
+    /* Hide spinner on number inputs */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { 
+      -webkit-appearance: none; 
+      margin: 0; 
+    }
+    input[type=number] { -moz-appearance: textfield; }
+    
     input:focus { border-color: var(--accent); }
     
     button, .btn { padding: 9px 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
@@ -231,11 +263,11 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; text-align: center; }
     tr:last-child td { border-bottom: none; }
     .col-name { text-align: left; padding-left: 10px; }
-    .col-pin { width: 45px; }
-    .col-note { width: 55px; }
-    .col-midi { width: 45px; }
-    .col-ch { width: 40px; }
-    .col-s-action { width: 110px; }
+    .col-pin { width: 42px; }
+    .col-note { width: 50px; }
+    .col-midi { width: 55px; }
+    .col-ch { width: 45px; }
+    .col-s-action { width: 105px; }
     
     /* Progress Bars */
     .progress-bg { background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin: 8px 0; }
@@ -371,6 +403,21 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 </footer>
 
 <script>
+// Mematikan scroll wheel dan panah keyboard pada input number
+document.addEventListener("wheel", function(e){
+    if(document.activeElement && document.activeElement.type === "number"){
+        e.preventDefault();
+    }
+}, { passive: false });
+
+document.addEventListener("keydown", function(e){
+    if(document.activeElement && document.activeElement.type === "number"){
+        if(e.key === "ArrowUp" || e.key === "ArrowDown"){
+            e.preventDefault();
+        }
+    }
+});
+
 const noteMap = {{NOTE_MAP}};
 const allowedPins = {{ALLOWED_PINS}};
 document.addEventListener('DOMContentLoaded', () => {
@@ -436,10 +483,29 @@ async function loadData() {
 
     // Fetch Solenoids
     try {
-    const resS = await fetch('/api/solenoids?t=' + t);
-    const solenoids = await resS.json();
-    const sBody = document.getElementById('solenoidBody'); sBody.innerHTML = '';
-    solenoids.forEach(s => { sBody.innerHTML += `<tr><td class="col-pin">${s.pin}</td><td class="col-note">${s.note}</td><td class="col-midi">${s.midi}</td><td class="col-ch">${s.ch}</td><td class="col-s-action"><button class="primary" style="padding: 3px 6px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button></td></tr>`; });
+        const resS = await fetch('/api/solenoids?t=' + t);
+        const solenoids = await resS.json();
+        const sBody = document.getElementById('solenoidBody');
+        
+        // Cek jika pengguna sedang mengetik di elemen INPUT di dalam tabel
+        const activeEl = document.activeElement;
+        const isTypingInTable = sBody && sBody.contains(activeEl) && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+        // Hanya tahan update jika kursor fokus di dalam kolom teks input
+        if (!isTypingInTable) {
+            sBody.innerHTML = '';
+            solenoids.forEach(s => { sBody.innerHTML += `<tr>
+                <td class="col-pin">${s.pin}</td>
+                <td><input type="text" id="editNote-${s.pin}" value="${s.note}" style="width:100%; padding: 4px 2px; text-align: center;"></td>
+                <td><input type="text" id="editMidi-${s.pin}" value="${s.midi}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
+                <td><input type="text" id="editCh-${s.pin}" value="${s.ch}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
+                <td class="col-s-action">
+                    <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button>
+                    <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="saveEdit(${s.pin})">Save</button>
+                    <button class="danger" style="padding: 3px 5px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button>
+                </td>
+            </tr>`; });
+        }
     } catch (e) { console.error("Solenoids load error", e); }
 
     // Fetch Files
@@ -498,8 +564,8 @@ async function restoreConfig() {
 }
 async function saveTime() {
   const timeInput = document.getElementById('sTime'); const currentTimeText = document.getElementById('currentTime').innerText;
-  const newTime = timeInput.value;
-  if (!newTime) { alert('Enter new duration!'); return; }
+  const newTime = timeInput.value.trim();
+  if (!newTime || isNaN(parseInt(newTime))) { alert('Masukkan durasi angka yang valid!'); return; }
   if (newTime === currentTimeText) { alert('Duration is the same, not saved'); return; }
   await fetch('/api/time', { method: 'POST', body: newTime });
   timeInput.value = ''; loadData();
@@ -514,22 +580,67 @@ async function uploadFile() {
   else alert('Failed to upload file');
 }
 async function addSolenoid() {
-  const pin = parseInt(document.getElementById('sPin').value); let note = document.getElementById('sNote').value; const midi = parseInt(document.getElementById('sMidi').value); const ch = parseInt(document.getElementById('sChannel').value) || 0;
+  const pinRaw = document.getElementById('sPin').value.trim();
+  const noteRaw = document.getElementById('sNote').value.trim();
+  const midiRaw = document.getElementById('sMidi').value.trim();
+  const chRaw = document.getElementById('sChannel').value.trim();
   
-  if(!pin || !midi) { alert('GPIO and MIDI Note Number are required!'); return; }
-  if(ch < 0 || ch > 16) { alert('MIDI Channel must be between 0 and 16!'); return; }
-  if(!allowedPins.includes(pin)) { alert('GPIO not valid'); return; }
+  if (!pinRaw || !midiRaw) { alert('Kolom GPIO Pin dan MIDI Note wajib diisi!'); return; }
   
-  if(!note) note = '-';
-  const resS = await fetch('/api/solenoids'); let solenoids = await resS.json();
-  if (solenoids.some(s => s.pin === pin)) { alert('GPIO is already used!'); return; }
+  const pin = parseInt(pinRaw);
+  const midi = parseInt(midiRaw);
+  const ch = chRaw === "" ? 0 : parseInt(chRaw);
+  
+  if (isNaN(pin) || isNaN(midi) || isNaN(ch)) { alert('GPIO, MIDI, dan Channel harus berupa angka!'); return; }
+  if (ch < 0 || ch > 16) { alert('MIDI Channel harus antara 0 dan 16!'); return; }
+  if (!allowedPins.includes(pin)) { alert('GPIO Pin tidak valid!'); return; }
+  
+  const resS = await fetch('/api/solenoids');
+  let solenoids = await resS.json();
+  
+  if (solenoids.some(s => s.pin === pin)) { alert('GPIO Pin sudah digunakan!'); return; }
+  
+  const note = noteRaw || '-';
   solenoids.push({pin: pin, note: note, midi: midi, ch: ch});
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
-  document.getElementById('sPin').value = ''; document.getElementById('sNote').value = ''; document.getElementById('sMidi').value = ''; document.getElementById('sChannel').value = '';
+  
+  document.getElementById('sPin').value = '';
+  document.getElementById('sNote').value = '';
+  document.getElementById('sMidi').value = '';
+  document.getElementById('sChannel').value = '';
+  
+  if (document.activeElement) document.activeElement.blur();
   loadData();
 }
+async function saveEdit(pin) {
+    const note = document.getElementById('editNote-' + pin).value.trim();
+    const midiRaw = document.getElementById('editMidi-' + pin).value.trim();
+    const chRaw = document.getElementById('editCh-' + pin).value.trim();
+    
+    if (!midiRaw) { alert('MIDI Note wajib diisi!'); return; }
+    
+    const midi = parseInt(midiRaw);
+    const ch = chRaw === "" ? 0 : parseInt(chRaw);
+    
+    if (isNaN(midi) || isNaN(ch)) { alert('MIDI dan Channel harus berupa angka!'); return; }
+    if (ch < 0 || ch > 16) { alert('MIDI Channel harus antara 0 dan 16!'); return; }
+    
+    const resS = await fetch('/api/solenoids');
+    let solenoids = await resS.json();
+    const index = solenoids.findIndex(s => s.pin === pin);
+    if (index !== -1) {
+        solenoids[index].note = note || '-';
+        solenoids[index].midi = midi;
+        solenoids[index].ch = ch;
+        await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
+        if (document.activeElement) document.activeElement.blur();
+        loadData();
+    }
+}
 async function removeSolenoid(pin) {
-  const resS = await fetch('/api/solenoids'); let solenoids = await resS.json();
+  if (document.activeElement) document.activeElement.blur();
+  const resS = await fetch('/api/solenoids');
+  let solenoids = await resS.json();
   solenoids = solenoids.filter(s => s.pin !== pin);
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
   loadData();
@@ -548,7 +659,6 @@ let ws = null;
 let wsPingInterval = null;
 
 function initWebSocket() {
-    // Jika socket sudah terhubung atau sedang menghubungkan, batalkan
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         return;
     }
@@ -559,14 +669,13 @@ function initWebSocket() {
         console.log("WebSocket Connected");
         ws.send("ping");
 
-        // Kirim Ping setiap 3 detik untuk memastikan koneksi masih hidup
         if (wsPingInterval) clearInterval(wsPingInterval);
         wsPingInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 try {
                     ws.send("ping");
                 } catch (e) {
-                    ws.close(); // Paksa close jika gagal send
+                    ws.close();
                 }
             } else {
                 if (ws) ws.close();
@@ -587,13 +696,13 @@ function initWebSocket() {
 
     ws.onerror = (err) => {
         console.error("WS Error:", err);
-        if (ws) ws.close(); // Trigger onclose saat terjadi error
+        if (ws) ws.close();
     };
 
     ws.onclose = () => {
         if (wsPingInterval) clearInterval(wsPingInterval);
         console.log("WS Disconnected, reconnecting in 2s...");
-        setTimeout(initWebSocket, 2000); // Reconnect otomatis
+        setTimeout(initWebSocket, 2000);
     };
 }
 
