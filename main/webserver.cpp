@@ -103,7 +103,7 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>Setup AP - AN Electronic</title>
+  <title>Setup AP - ESP32-S3 WROOM-1U</title>
   <style>
     :root { --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-muted: #94a3b8; --accent: #38bdf8; --border: #334155; }
     body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
@@ -134,12 +134,12 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 </head>
 <body>
 <div class="card">
-  <h2>WiFi AP Config</h2>
+  <h2>WiFi Config</h2>
   <div class="input-group">
-    <input type="text" id="wifiSsid" placeholder="SSID Network" />
+    <input type="text" id="wifiSsid" placeholder="SSID" />
     <input type="text" id="wifiPass" placeholder="Password" />
     <div class="row">
-      <label style="font-size: 0.9rem; color: var(--text-muted);">Enable WiFi STA</label>
+      <label style="font-size: 0.9rem; color: var(--text-muted);">Enable WiFi</label>
       <label class="switch">
         <input type="checkbox" id="wifiEnable">
         <span class="slider"></span>
@@ -148,7 +148,7 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
     <button onclick="saveWifi()">Save and Apply</button>
   </div>
 </div>
-<footer>&copy; 2026 AN ELECTRONIC | Mataram, NTB</footer>
+<footer>&copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat</footer>
 <script>
 // Mematikan scroll wheel dan panah keyboard pada input number
 document.addEventListener("wheel", function(e){
@@ -296,7 +296,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       <span id="timeRemaining">0:00</span>
     </div>
     <div class="row" style="justify-content: center; gap: 6px; margin-bottom: 0;">
-      <button onclick="sendCommand('prev')" class="primary" style="flex:1;">Prev</button>
+      <button onclick="sendCommand('prev')" class="primary" style="flex:1;">Previous</button>
       <button onclick="sendCommand('start')" class="primary" style="flex:1.5;" id="btnStart">Play</button>
       <button onclick="sendCommand('next')" class="primary" style="flex:1;">Next</button>
       <button onclick="sendCommand('mode')" class="primary" style="flex:1;">Mode</button>
@@ -343,16 +343,16 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <div class="card card-full">
     <h2>Actuator Manager</h2>
     <div class="row row-wrap" style="gap: 8px; margin-bottom: 12px;">
-      <input type="number" id="sPin" placeholder="GPIO Pin" style="flex: 1; min-width: 90px;" />
-      <input type="text" id="sNote" placeholder="Note (e.g. C4)" style="flex: 1; min-width: 90px;" />
-      <input type="number" id="sMidi" placeholder="MIDI Note" style="flex: 1; min-width: 100px;" />
-      <input type="number" id="sChannel" placeholder="MIDI Ch (0=All)" style="flex: 1; min-width: 100px;" />
+      <input type="number" id="sPin" placeholder="GPIO" style="flex: 1; min-width: 90px;" />
+      <input type="text" id="sNote" placeholder="Note" style="flex: 1; min-width: 90px;" />
+      <input type="number" id="sMidi" placeholder="MIDI" style="flex: 1; min-width: 100px;" />
+      <input type="number" id="sChannel" placeholder="Channel" style="flex: 1; min-width: 100px;" />
     </div>
     <div class="row" style="gap: 8px; margin-bottom: 12px;">
       <button onclick="backupConfig()" class="primary" style="flex: 1;">Backup</button>
       <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
       <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1;">Restore</button>
-      <button onclick="addSolenoid()" class="primary" style="flex: 1;">Save</button>
+      <button onclick="addSolenoid()" class="primary" style="flex: 1;">Add</button>
     </div>
     <div class="scroll-container">
       <table>
@@ -369,7 +369,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       <input type="text" id="wifiSsid" placeholder="SSID" />
       <input type="text" id="wifiPass" placeholder="Password" />
       <div class="row" style="justify-content: space-between; margin-top: 4px; margin-bottom: 4px;">
-        <label style="font-size: 0.85rem; color: var(--text-muted);">Enable WiFi STA</label>
+        <label style="font-size: 0.85rem; color: var(--text-muted);">Enable WiFi</label>
         <label class="switch">
           <input type="checkbox" id="wifiEnable">
           <span class="slider"></span>
@@ -385,9 +385,9 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     <div style="display: flex; flex-direction: column; gap: 8px;">
       <div style="font-size: 0.8rem;">Version: <strong style="color: var(--accent);">{{FW_VERSION}}</strong></div>
       <div class="row" style="margin-bottom: 0;">
-        <label for="otaBinInput" class="file-label" onclick="document.getElementById('otaBinInput').click()">Select .bin File</label>
+        <label for="otaBinInput" class="file-label" onclick="document.getElementById('otaBinInput').click()">Select BIN File</label>
         <input type="file" id="otaBinInput" accept=".bin" style="display:none;" onchange="document.querySelector('label[for=\'otaBinInput\']').innerText = this.files[0].name" />
-        <button onclick="uploadOta()" class="primary">Upload</button>
+        <button onclick="uploadOta()" class="primary">Update</button>
       </div>
       <div style="font-size: 0.75rem; color: var(--text-muted);">
         <span>Last Update: {{LAST_UPDATE}}</span>
