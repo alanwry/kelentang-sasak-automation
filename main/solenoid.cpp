@@ -5,11 +5,12 @@
 #include "player.h"
 #include "webserver.h"
 
-void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel) {
+void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel, bool enabled) {
   pin = gpio;
   this->note = note;
   this->midiNote = midiNote;
   this->midiChannel = midiChannel;
+  this->enabled = enabled;
   active = false;
   offTime = 0;
   pinMode(pin, OUTPUT);
@@ -17,6 +18,7 @@ void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiCh
 }
 
 void Solenoid::hit(uint16_t duration) {
+  if (!enabled) return;
   digitalWrite(pin, HIGH);
   active = true;
   offTime = esp_timer_get_time() + (duration * 1000ULL);
@@ -85,13 +87,15 @@ bool SolenoidManager::loadConfig() {
     int comma1 = line.indexOf(',');
     int comma2 = line.indexOf(',', comma1 + 1);
     int comma3 = line.indexOf(',', comma2 + 1);
+    int comma4 = line.indexOf(',', comma3 + 1);
 
     if (comma1 > 0 && comma2 > comma1) {
       uint8_t p = line.substring(0, comma1).toInt();
       String n = line.substring(comma1 + 1, comma2);
       uint8_t m = line.substring(comma2 + 1, comma3 > 0 ? comma3 : line.length()).toInt();
-      uint8_t ch = (comma3 > 0) ? line.substring(comma3 + 1).toInt() : 0;
-      addSolenoid(p, n, m, ch);
+      uint8_t ch = (comma3 > 0) ? (comma4 > 0 ? line.substring(comma3 + 1, comma4) : line.substring(comma3 + 1)).toInt() : 0;
+      bool en = (comma4 > 0) ? (line.substring(comma4 + 1).toInt() == 1) : true;
+      addSolenoid(p, n, m, ch, en);
     }
   }
   file.close();
@@ -112,8 +116,10 @@ bool SolenoidManager::saveConfig() {
     file.print(",");
     file.print(item[i].getMidiNote());
     file.print(",");
-    file.println(item[i].getMidiChannel());
-    LOG("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel());
+    file.print(item[i].getMidiChannel());
+    file.print(",");
+    file.println(item[i].isEnabled() ? 1 : 0);
+    LOG("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d, Enabled: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel(), item[i].isEnabled());
   }
 
   file.flush();
@@ -121,9 +127,9 @@ bool SolenoidManager::saveConfig() {
   return true;
 }
 
-void SolenoidManager::addSolenoid(uint8_t pin, String note, uint8_t midiNote, uint8_t midiChannel) {
+void SolenoidManager::addSolenoid(uint8_t pin, String note, uint8_t midiNote, uint8_t midiChannel, bool enabled) {
   if (count < MAX_SOLENOID) {
-    item[count++].begin(pin, note, midiNote, midiChannel);
+    item[count++].begin(pin, note, midiNote, midiChannel, enabled);
   }
 }
 
@@ -146,7 +152,7 @@ void SolenoidManager::update() {
 }
 
 void SolenoidManager::hit(uint8_t id, uint16_t duration) {
-  if (id < count) {
+  if (id < count && item[id].isEnabled()) {
     item[id].hit(duration);
   }
 }

@@ -6,6 +6,9 @@
 
 MidiFile midi;
 
+// Track unique Note-Channel combinations (128 notes * 16 channels)
+static bool seenEvents[128][17]; 
+
 namespace {
 
 bool readBe16Safe(File &file, uint16_t &result, uint32_t &bytesRead) {
@@ -87,6 +90,9 @@ bool MidiFile::eof() {
 }
 
 bool MidiFile::parse() {
+  // Reset seen events tracking for a new parse
+  memset(seenEvents, 0, sizeof(seenEvents));
+
   if (!midiFile) {
     LOG("[MIDI] parse failed: file not valid\n");
     lastError = ERR_FILE_TRUNCATED;
@@ -255,7 +261,13 @@ bool MidiFile::parse() {
           data2 = midiFile.read();
           trackBytesRead += 2;
 
-          LOG("[MIDI] Note On - Note: %d, Velocity: %d, Channel: %d\n", data1, data2, (statusByte & 0x0F) + 1);
+          {
+            uint8_t currentChannel = (statusByte & 0x0F) + 1;
+            if (!seenEvents[data1][currentChannel]) {
+              LOG("[MIDI] Found Note: %d, Channel: %d\n", data1, currentChannel);
+              seenEvents[data1][currentChannel] = true;
+            }
+          }
 
           if (data2 > 0) {
             Solenoid *items = solenoid.getItems();

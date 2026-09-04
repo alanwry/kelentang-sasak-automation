@@ -7,7 +7,7 @@
 // Solenoid individual - kontrol satu solenoid
 class Solenoid {
 public:
-  void begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel);
+  void begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiChannel, bool enabled = true);
   void hit(uint16_t duration = 20);
   void update();
   void off();
@@ -15,12 +15,15 @@ public:
   String getNote();
   uint8_t getMidiNote();
   uint8_t getMidiChannel();
+  bool isEnabled() { return enabled; }
+  void setEnabled(bool e) { enabled = e; }
 
 private:
   uint8_t pin;
   String note;
   uint8_t midiNote;
   uint8_t midiChannel; // NEW
+  bool enabled;
   bool active;
   uint64_t offTime;
 };
@@ -37,7 +40,7 @@ public:
   // Dynamic management
   bool loadConfig();
   bool saveConfig();
-  void addSolenoid(uint8_t pin, String note, uint8_t midiNote, uint8_t midiChannel);
+  void addSolenoid(uint8_t pin, String note, uint8_t midiNote, uint8_t midiChannel, bool enabled = true);
   void removeSolenoid(uint8_t pin);
   uint8_t getCount() const;
   Solenoid *getItems();

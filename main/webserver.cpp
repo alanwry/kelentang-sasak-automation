@@ -356,7 +356,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
     <div class="scroll-container">
       <table>
-        <thead><tr><th class="col-pin">GPIO</th><th class="col-note">Note</th><th class="col-midi">MIDI</th><th class="col-ch">Ch</th><th class="col-s-action">Action</th></tr></thead>
+        <thead><tr><th class="col-pin">GPIO</th><th class="col-note">Note</th><th class="col-midi">MIDI</th><th class="col-ch">Ch</th><th style="width:35px;">En</th><th class="col-s-action">Action</th></tr></thead>
         <tbody id="solenoidBody"></tbody>
       </table>
     </div>
@@ -499,6 +499,7 @@ async function loadData() {
                 <td><input type="text" id="editNote-${s.pin}" value="${s.note}" style="width:100%; padding: 4px 2px; text-align: center;"></td>
                 <td><input type="text" id="editMidi-${s.pin}" value="${s.midi}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
                 <td><input type="text" id="editCh-${s.pin}" value="${s.ch}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
+                <td><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''}></td>
                 <td class="col-s-action">
                     <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button>
                     <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="saveEdit(${s.pin})">Save</button>
@@ -616,6 +617,7 @@ async function saveEdit(pin) {
     const note = document.getElementById('editNote-' + pin).value.trim();
     const midiRaw = document.getElementById('editMidi-' + pin).value.trim();
     const chRaw = document.getElementById('editCh-' + pin).value.trim();
+    const enabled = document.getElementById('editEn-' + pin).checked;
     
     if (!midiRaw) { alert('MIDI Note wajib diisi!'); return; }
     
@@ -632,6 +634,7 @@ async function saveEdit(pin) {
         solenoids[index].note = note || '-';
         solenoids[index].midi = midi;
         solenoids[index].ch = ch;
+        solenoids[index].en = enabled ? 1 : 0;
         await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
         if (document.activeElement) document.activeElement.blur();
         loadData();
@@ -785,7 +788,7 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
     String json = "[";
     Solenoid *items = solenoid.getItems();
     for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" + items[i].getNote() + "\",\"midi\":" + String(items[i].getMidiNote()) + ",\"ch\":" + String(items[i].getMidiChannel()) + "}";
+      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" + items[i].getNote() + "\",\"midi\":" + String(items[i].getMidiNote()) + ",\"ch\":" + String(items[i].getMidiChannel()) + ",\"en\":" + String(items[i].isEnabled() ? 1 : 0) + "}";
       if (i < solenoid.getCount() - 1) json += ",";
     }
     json += "]";
@@ -811,9 +814,12 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
         int mComma = obj.indexOf(",", mStart);
         int midi = obj.substring(mStart, mComma).toInt();
         int cStart = obj.indexOf(":", mComma) + 1;
-        int cEnd = obj.indexOf("}", cStart);
-        int channel = obj.substring(cStart, cEnd).toInt();
-        solenoid.addSolenoid(pin, note, midi, channel);
+        int cComma = obj.indexOf(",", cStart);
+        int channel = obj.substring(cStart, cComma).toInt();
+        int eStart = obj.indexOf(":", cComma) + 1;
+        int eEnd = obj.indexOf("}", eStart);
+        bool enabled = (obj.substring(eStart, eEnd).toInt() == 1);
+        solenoid.addSolenoid(pin, note, midi, channel, enabled);
         start = end;
       }
       solenoid.saveConfig();
