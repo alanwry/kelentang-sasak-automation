@@ -112,7 +112,6 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
     .input-group { display: flex; flex-direction: column; gap: 12px; }
     input[type="text"] { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: #0f172a; color: white; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
     
-    /* Hide spinner on number inputs */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
       -webkit-appearance: none; 
@@ -150,7 +149,6 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 </div>
 <footer>&copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat</footer>
 <script>
-// Mematikan scroll wheel dan panah keyboard pada input number
 document.addEventListener("wheel", function(e){
     if(document.activeElement && document.activeElement.type === "number"){
         e.preventDefault();
@@ -190,8 +188,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>ESP32-S3 WROOM-1U</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>ESP32-S3 WROOM-1U Dashboard</title>
   <style>
     :root { 
       --bg-color: #0f172a; 
@@ -205,30 +203,38 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       --input-bg: #0f172a;
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 15px; line-height: 1.5; display: flex; flex-direction: column; align-items: center; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
     
-    header { width: 100%; max-width: 480px; margin: 0 auto 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
-    header h1 { margin: 0; font-size: 1.3rem; color: var(--accent); letter-spacing: -0.025em; }
+    header { width: 100%; max-width: 1280px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+    header h1 { margin: 0; font-size: 1.5rem; color: var(--accent); letter-spacing: -0.025em; }
     
+    /* Strict 3-Column Desktop Grid Layout */
     .dashboard-grid { 
-      display: flex;
-      flex-direction: column;
-      gap: 16px; 
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px; 
       width: 100%;
-      max-width: 480px; 
+      max-width: 1280px; 
       margin: 0 auto; 
     }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 640px) {
+      .dashboard-grid { grid-template-columns: 1fr; }
+    }
     
-    .card { background: var(--card-bg); padding: 18px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 1px solid var(--border); display: flex; flex-direction: column; width: 100%; }
-    .card-full { width: 100%; }
+    /* min-width: 0 mencegah elemen di dalam kartu merusak lebar grid */
+    .card { background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 1px solid var(--border); display: flex; flex-direction: column; width: 100%; min-width: 0; }
     
-    h2 { margin-top: 0; margin-bottom: 12px; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    h2 { margin-top: 0; margin-bottom: 14px; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
     .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .row-wrap { flex-wrap: wrap; }
     
     input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.85rem; flex-grow: 1; outline: none; transition: border-color 0.2s; width: 100%; }
     
-    /* Hide spinner on number inputs */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
       -webkit-appearance: none; 
@@ -244,7 +250,6 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     .primary { background: var(--accent); color: #0f172a; }
     .danger { background: var(--danger); color: white; }
     
-    /* Toggle Switch */
     .switch { position: relative; display: inline-block; width: 44px; height: 22px; flex-shrink: 0; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 22px; }
@@ -252,40 +257,68 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     input:checked + .slider { background-color: var(--accent); }
     input:checked + .slider:before { transform: translateX(22px); background-color: #0f172a; }
 
-    /* Custom File Input */
     .file-label { padding: 9px 12px; border: 1px dashed var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; transition: border-color 0.2s; }
     .file-label:hover { border-color: var(--accent); color: var(--text-main); }
     
-    /* Tables */
-    .scroll-container { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: #0f172a; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    thead th { position: sticky; top: 0; background: #1a2436; z-index: 1; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
-    td { padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; text-align: center; }
-    tr:last-child td { border-bottom: none; }
-    .col-name { text-align: left; padding-left: 10px; }
-    .col-pin { width: 42px; }
-    .col-note { width: 50px; }
-    .col-midi { width: 55px; }
-    .col-ch { width: 45px; }
-    .col-s-action { width: 105px; }
+    /* Scrollbar Custom */
+    .scroll-body::-webkit-scrollbar, #logContainer::-webkit-scrollbar { width: 8px; height: 8px; }
+    .scroll-body::-webkit-scrollbar-track, #logContainer::-webkit-scrollbar-track { background: var(--input-bg); border-radius: 4px; }
+    .scroll-body::-webkit-scrollbar-thumb, #logContainer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .scroll-body::-webkit-scrollbar-thumb:hover, #logContainer::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+    /* Container Tabel */
+    .scroll-container { border: 1px solid var(--border); border-radius: 8px; background: #0f172a; overflow-x: auto; overflow-y: hidden; }
+    .scroll-body { max-height: 200px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 320px; }
     
-    /* Progress Bars */
+    /* Alignment Tabel */
+    thead th, td { padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; text-align: center; }
+    thead th { background: #1a2436; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: center; }
+    
+    /* Column Definition */
+    .col-name { text-align: left !important; padding-left: 10px !important; }
+    .col-f-size { width: 75px; text-align: center !important; }
+    .col-f-action { width: 75px; text-align: center !important; }
+
+    .col-pin { width: 45px; text-align: center !important; }
+    .col-note { width: 60px; text-align: center !important; }
+    .col-midi { width: 60px; text-align: center !important; }
+    .col-ch { width: 45px; text-align: center !important; }
+    .col-en { width: 35px; text-align: center !important; }
+    .col-s-action { width: 130px; text-align: center !important; }
+
+    /* Log System Styling */
+    #logContainer {
+      background: #0f172a;
+      padding: 10px;
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #10b981;
+      height: 200px;
+      max-height: 200px;
+      overflow-y: auto !important;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    
+    tr:last-child td { border-bottom: none; }
+    
     .progress-bg { background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin: 8px 0; }
     .progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width 0.3s ease; }
     
-    footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 480px; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 1280px; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>KELENTANG ROBOT</h1>
-  <span style="font-size: 0.8rem; color: var(--text-muted);"><span id="tempDisplay">--.-°C</span></span>
+  <span style="font-size: 0.9rem; color: var(--text-muted);"><span id="tempDisplay">--.-°C</span></span>
 </header>
 
 <div class="dashboard-grid">
 
-  <!-- 1. Player Control Card -->
+  <!-- BARIS 1 / KARTU 1: Player Control -->
   <div class="card">
     <h2>Player Control</h2>
     <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Not playing</div>
@@ -295,39 +328,15 @@ const char htmlPage[] PROGMEM = R"rawliteral(
       <span id="modeDisplay" style="background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent);">PlayOnce</span>
       <span id="timeRemaining">0:00</span>
     </div>
-    <div class="row" style="justify-content: center; gap: 6px; margin-bottom: 0;">
-      <button onclick="sendCommand('prev')" class="primary" style="flex:1;">Previous</button>
-      <button onclick="sendCommand('start')" class="primary" style="flex:1.5;" id="btnStart">Play</button>
-      <button onclick="sendCommand('next')" class="primary" style="flex:1;">Next</button>
-      <button onclick="sendCommand('mode')" class="primary" style="flex:1;">Mode</button>
+    <div class="row" style="justify-content: center; gap: 4px; margin-bottom: 0;">
+      <button onclick="sendCommand('prev')" class="primary" style="flex:1; padding: 8px 4px;">Previous</button>
+      <button onclick="sendCommand('start')" class="primary" style="flex:1.2; padding: 8px 4px;" id="btnStart">Play</button>
+      <button onclick="sendCommand('next')" class="primary" style="flex:1; padding: 8px 4px;">Next</button>
+      <button onclick="sendCommand('mode')" class="primary" style="flex:1; padding: 8px 4px;">Mode</button>
     </div>
   </div>
 
-  <!-- 2. WebSerial Card (System Log) -->
-  <div class="card card-full">
-    <h2>System Log</h2>
-    <div id="logContainer" class="scroll-container" style="background: #0f172a; padding: 10px; font-family: monospace; font-size: 0.75rem; color: #10b981; height: 180px; white-space: pre-wrap;"></div>
-    <button onclick="document.getElementById('logContainer').innerText = ''" class="danger" style="margin-top: 10px;">Clear Log</button>
-  </div>
-
-  <!-- 3. MIDI File Manager Card -->
-  <div class="card">
-    <h2>MIDI File Manager</h2>
-    <div class="row">
-      <label for="fileInput" class="file-label" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
-      <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
-      <button onclick="uploadFile()" class="primary">Upload</button>
-    </div>
-    <div class="scroll-container">
-      <table>
-        <thead><tr><th class="col-name">Name</th><th style="width:65px;">Size</th><th style="width:65px;">Action</th></tr></thead>
-        <tbody id="fileBody"></tbody>
-      </table>
-    </div>
-    <div id="storageInfo" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); text-align: center;"></div>
-  </div>
-
-  <!-- 4. Actuator Active Duration Card -->
+  <!-- BARIS 1 / KARTU 2: Actuator Active Duration -->
   <div class="card">
     <h2>Actuator Active Duration</h2>
     <div style="font-size: 0.85rem; margin-bottom: 10px; color: var(--text-muted);">
@@ -339,30 +348,73 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 5. Actuator Manager Card -->
-  <div class="card card-full">
-    <h2>Actuator Manager</h2>
-    <div class="row row-wrap" style="gap: 8px; margin-bottom: 12px;">
-      <input type="number" id="sPin" placeholder="GPIO" style="flex: 1; min-width: 90px;" />
-      <input type="text" id="sNote" placeholder="Note" style="flex: 1; min-width: 90px;" />
-      <input type="number" id="sMidi" placeholder="MIDI" style="flex: 1; min-width: 100px;" />
-      <input type="number" id="sChannel" placeholder="Channel" style="flex: 1; min-width: 100px;" />
-    </div>
-    <div class="row" style="gap: 8px; margin-bottom: 12px;">
-      <button onclick="backupConfig()" class="primary" style="flex: 1;">Backup</button>
-      <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
-      <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1;">Restore</button>
-      <button onclick="addSolenoid()" class="primary" style="flex: 1;">Add</button>
+  <!-- BARIS 1 / KARTU 3: MIDI File Manager -->
+  <div class="card">
+    <h2>MIDI File Manager</h2>
+    <div class="row">
+      <label for="fileInput" class="file-label" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
+      <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
+      <button onclick="uploadFile()" class="primary">Upload</button>
     </div>
     <div class="scroll-container">
       <table>
-        <thead><tr><th class="col-pin">GPIO</th><th class="col-note">Note</th><th class="col-midi">MIDI</th><th class="col-ch">Ch</th><th style="width:35px;">En</th><th class="col-s-action">Action</th></tr></thead>
-        <tbody id="solenoidBody"></tbody>
+        <thead><tr><th class="col-name">Name</th><th class="col-f-size">Size</th><th class="col-f-action">Action</th></tr></thead>
       </table>
+      <div class="scroll-body">
+        <table>
+          <tbody id="fileBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div id="storageInfo" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); text-align: center;"></div>
+  </div>
+
+  <!-- BARIS 2 / KARTU 4: System Log -->
+  <div class="card">
+    <h2>System Log</h2>
+    <div class="scroll-container">
+      <div id="logContainer"></div>
+    </div>
+    <button onclick="document.getElementById('logContainer').innerText = ''" class="danger" style="margin-top: 10px; align-self: flex-start;">Clear Log</button>
+  </div>
+
+  <!-- BARIS 2 / KARTU 5: Actuator Manager -->
+  <div class="card">
+    <h2>Actuator Manager</h2>
+    <div class="row row-wrap" style="gap: 6px; margin-bottom: 8px;">
+      <input type="number" id="sPin" placeholder="GPIO" style="flex: 1; min-width: 60px;" />
+      <input type="text" id="sNote" placeholder="Note" style="flex: 1; min-width: 60px;" />
+      <input type="number" id="sMidi" placeholder="MIDI" style="flex: 1; min-width: 60px;" />
+      <input type="number" id="sChannel" placeholder="Ch" style="flex: 1; min-width: 50px;" />
+    </div>
+    <div class="row" style="gap: 6px; margin-bottom: 10px;">
+      <button onclick="backupConfig()" class="primary" style="flex: 1; padding: 6px;">Backup</button>
+      <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
+      <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1; padding: 6px;">Restore</button>
+      <button onclick="addSolenoid()" class="primary" style="flex: 1; padding: 6px;">Add</button>
+    </div>
+    <div class="scroll-container">
+      <table>
+        <thead>
+          <tr>
+            <th class="col-pin">GPIO</th>
+            <th class="col-note">Note</th>
+            <th class="col-midi">MIDI</th>
+            <th class="col-ch">Ch</th>
+            <th class="col-en">En</th>
+            <th class="col-s-action">Action</th>
+          </tr>
+        </thead>
+      </table>
+      <div class="scroll-body">
+        <table>
+          <tbody id="solenoidBody"></tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <!-- 6. WiFi Manager Card -->
+  <!-- BARIS 2 / KARTU 6: WiFi Manager -->
   <div class="card">
     <h2>WiFi Manager</h2>
     <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -379,8 +431,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     </div>
   </div>
 
-  <!-- 7. Firmware Update Card -->
-  <div class="card card-full">
+  <!-- BARIS 3 / KARTU 7: Update Firmware -->
+  <div class="card">
     <h2>Update Firmware</h2>
     <div style="display: flex; flex-direction: column; gap: 8px;">
       <div style="font-size: 0.8rem;">Version: <strong style="color: var(--accent);">{{FW_VERSION}}</strong></div>
@@ -403,7 +455,6 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 </footer>
 
 <script>
-// Mematikan scroll wheel dan panah keyboard pada input number
 document.addEventListener("wheel", function(e){
     if(document.activeElement && document.activeElement.type === "number"){
         e.preventDefault();
@@ -431,6 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
 async function uploadOta() {
     const fileInput = document.getElementById('otaBinInput');
     if (!fileInput.files[0]) { alert('Select .bin file first!'); return; }
@@ -453,21 +505,21 @@ async function uploadOta() {
     };
     xhr.send(fileInput.files[0]);
 }
+
 async function sendCommand(cmd) {
     await fetch('/api/player/cmd?action='+cmd, { method: 'POST' });
     loadData();
 }
+
 async function loadData() {
     const t = Date.now();
     
-    // Fetch Temperature
     try {
         const resTemp = await fetch('/api/temp?t=' + t);
         const temp = await resTemp.text();
         document.getElementById('tempDisplay').innerText = temp;
     } catch (e) { console.error("Temp load error", e); }
     
-    // Fetch Player
     try {
         const resP = await fetch('/api/player?t=' + t); 
         const player = await resP.json();
@@ -481,40 +533,42 @@ async function loadData() {
         document.getElementById('timeRemaining').innerText = formatTime(remaining);
     } catch (e) { console.error("Player load error", e); }
 
-    // Fetch Solenoids
     try {
         const resS = await fetch('/api/solenoids?t=' + t);
         const solenoids = await resS.json();
         const sBody = document.getElementById('solenoidBody');
         
-        // Cek jika pengguna sedang mengetik di elemen INPUT di dalam tabel
         const activeEl = document.activeElement;
         const isTypingInTable = sBody && sBody.contains(activeEl) && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
 
-        // Hanya tahan update jika kursor fokus di dalam kolom teks input
         if (!isTypingInTable) {
             sBody.innerHTML = '';
             solenoids.forEach(s => { sBody.innerHTML += `<tr>
                 <td class="col-pin">${s.pin}</td>
-                <td><input type="text" id="editNote-${s.pin}" value="${s.note}" style="width:100%; padding: 4px 2px; text-align: center;"></td>
-                <td><input type="text" id="editMidi-${s.pin}" value="${s.midi}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
-                <td><input type="text" id="editCh-${s.pin}" value="${s.ch}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
-                <td><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''}></td>
+                <td class="col-note"><input type="text" id="editNote-${s.pin}" value="${s.note}" style="width:100%; padding: 4px 2px; text-align: center;"></td>
+                <td class="col-midi"><input type="text" id="editMidi-${s.pin}" value="${s.midi}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
+                <td class="col-ch"><input type="text" id="editCh-${s.pin}" value="${s.ch}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
+                <td class="col-en"><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''}></td>
                 <td class="col-s-action">
-                    <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button>
-                    <button class="primary" style="padding: 3px 5px; font-size: 0.7rem;" onclick="saveEdit(${s.pin})">Save</button>
-                    <button class="danger" style="padding: 3px 5px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button>
+                    <button class="primary" style="padding: 3px 4px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button>
+                    <button class="primary" style="padding: 3px 4px; font-size: 0.7rem;" onclick="saveEdit(${s.pin})">Save</button>
+                    <button class="danger" style="padding: 3px 4px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button>
                 </td>
             </tr>`; });
         }
     } catch (e) { console.error("Solenoids load error", e); }
 
-    // Fetch Files
     try {
         const resF = await fetch('/api/files?t=' + t); 
         const filesRes = await resF.json();
         const fBody = document.getElementById('fileBody'); fBody.innerHTML = '';
-        filesRes.files.forEach(f => { fBody.innerHTML += `<tr><td class="col-name">${f.name}</td><td>${formatSize(f.size)}</td><td><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="deleteFile('${f.name}')">Delete</button></td></tr>`; });
+        filesRes.files.forEach(f => { 
+          fBody.innerHTML += `<tr>
+            <td class="col-name">${f.name}</td>
+            <td class="col-f-size">${formatSize(f.size)}</td>
+            <td class="col-f-action"><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="deleteFile('${f.name}')">Delete</button></td>
+          </tr>`; 
+        });
         const sInfo = document.getElementById('storageInfo');
         if (filesRes.storage) {
             const used = filesRes.storage.total - filesRes.storage.free;
@@ -522,19 +576,20 @@ async function loadData() {
         } else sInfo.innerText = 'SD Card not detected';
     } catch (e) { console.error("Files load error", e); }
 
-    // Fetch Time
     try {
         const resT = await fetch('/api/time?t=' + t); 
         const time = await resT.json();
         document.getElementById('currentTime').innerText = time;
     } catch (e) { console.error("Time load error", e); }
 }
+
 function formatTime(ms) {
   const totalSeconds = Math.floor(ms / 1000);
   const mins = Math.floor(totalSeconds / 60);
   const secs = totalSeconds % 60;
   return mins + ":" + (secs < 10 ? "0" : "") + secs;
 }
+
 async function loadWifi() {
     try {
         const res = await fetch('/api/wifi?t=' + Date.now());
@@ -544,25 +599,30 @@ async function loadWifi() {
         document.getElementById('wifiEnable').checked = config.enable || false;
     } catch (e) { console.error("Wifi load error", e); }
 }
+
 function formatSize(bytes) {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
     return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
 }
+
 async function testSolenoid(pin) { await fetch('/api/solenoid/test?pin='+pin, { method: 'POST' }); }
+
 async function backupConfig() {
   const res = await fetch('/api/backup');
   const blob = await res.blob();
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url; a.download = 'backup.json'; a.click();
 }
+
 async function restoreConfig() {
   const input = document.getElementById('restoreInput'); if(!input.files[0]) return;
   const text = await input.files[0].text();
   await fetch('/api/restore', { method: 'POST', body: text });
   input.value = ''; loadData();
 }
+
 async function saveTime() {
   const timeInput = document.getElementById('sTime'); const currentTimeText = document.getElementById('currentTime').innerText;
   const newTime = timeInput.value.trim();
@@ -571,6 +631,7 @@ async function saveTime() {
   await fetch('/api/time', { method: 'POST', body: newTime });
   timeInput.value = ''; loadData();
 }
+
 async function uploadFile() {
   const fileInput = document.getElementById('fileInput'); if (!fileInput.files[0]) { alert('Select MIDI file first!'); return; }
   const formData = new FormData(); formData.append("file", fileInput.files[0]);
@@ -580,6 +641,7 @@ async function uploadFile() {
   else if (text === "OK") { fileInput.value = ''; document.querySelector('label[for=\'fileInput\']').innerText = 'Select MIDI File'; loadData(); }
   else alert('Failed to upload file');
 }
+
 async function addSolenoid() {
   const pinRaw = document.getElementById('sPin').value.trim();
   const noteRaw = document.getElementById('sNote').value.trim();
@@ -613,6 +675,7 @@ async function addSolenoid() {
   if (document.activeElement) document.activeElement.blur();
   loadData();
 }
+
 async function saveEdit(pin) {
     const note = document.getElementById('editNote-' + pin).value.trim();
     const midiRaw = document.getElementById('editMidi-' + pin).value.trim();
@@ -640,6 +703,7 @@ async function saveEdit(pin) {
         loadData();
     }
 }
+
 async function removeSolenoid(pin) {
   if (document.activeElement) document.activeElement.blur();
   const resS = await fetch('/api/solenoids');
@@ -648,16 +712,17 @@ async function removeSolenoid(pin) {
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
   loadData();
 }
+
 async function saveWifi() {
   const ssid = document.getElementById('wifiSsid').value; const pass = document.getElementById('wifiPass').value; const enable = document.getElementById('wifiEnable').checked;
   if (!ssid && enable) { alert('SSID is required if STA is enabled!'); return; }
   const res = await fetch('/api/wifi', { method: 'POST', body: JSON.stringify({ssid: ssid, pass: pass, enable: enable}) });
   if (res.ok) setTimeout(loadWifi, 500); else alert('Failed to save settings');
 }
+
 async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
 setInterval(loadData, 1000); loadData(); loadWifi();
 
-// WebSerial WebSocket Setup dengan Heartbeat Auto-Reconnect
 let ws = null;
 let wsPingInterval = null;
 
@@ -798,6 +863,11 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
     char buf[1024];
     int ret = httpd_req_recv(req, buf, sizeof(buf));
     if (ret > 0) {
+      std::vector<std::pair<int, bool>> old_states;
+      for (uint8_t i = 0; i < solenoid.getCount(); i++) {
+        old_states.push_back({solenoid.getItems()[i].getPin(), solenoid.getItems()[i].isEnabled()});
+      }
+
       while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
       String data(buf);
       int start = 0;
@@ -822,6 +892,17 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
         solenoid.addSolenoid(pin, note, midi, channel, enabled);
         start = end;
       }
+
+      for (uint8_t i = 0; i < solenoid.getCount(); i++) {
+        int pin = solenoid.getItems()[i].getPin();
+        bool new_enabled = solenoid.getItems()[i].isEnabled();
+        for (auto &old : old_states) {
+          if (old.first == pin && old.second != new_enabled) {
+            LOG("[SOLENOID]: Solenoid %d changed to %s\n", pin, new_enabled ? "ENABLED" : "DISABLED");
+          }
+        }
+      }
+
       solenoid.saveConfig();
       httpd_resp_send(req, "OK", 2);
     }
@@ -1167,40 +1248,40 @@ void WebServerManager::beginSTAFull() {
                                  nullptr };
 
   httpd_uri_t ota_uri = { "/update", HTTP_POST, [](httpd_req_t *req) {
-                           size_t content_len = req->content_len;
-                           if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
-                           if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
-                           char *buf = (char *)malloc(1024);
-                           int ret;
-                           while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
-                             if (Update.write((uint8_t *)buf, ret) != ret) {
-                               free(buf);
-                               Update.end();
-                               return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
+                             size_t content_len = req->content_len;
+                             if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
+                             if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
+                             char *buf = (char *)malloc(1024);
+                             int ret;
+                             while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
+                               if (Update.write((uint8_t *)buf, ret) != ret) {
+                                 free(buf);
+                                 Update.end();
+                                 return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
+                               }
                              }
-                           }
-                           free(buf);
-                           if (Update.end()) {
-                             vTaskDelay(pdMS_TO_TICKS(1000));
+                             free(buf);
+                             if (Update.end()) {
+                               vTaskDelay(pdMS_TO_TICKS(1000));
 
-                             struct tm timeinfo;
-                             char timeStr[32];
-                             if (getLocalTime(&timeinfo)) {
-                               strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
-                             } else {
-                               strcpy(timeStr, "Unknown");
-                             }
+                               struct tm timeinfo;
+                               char timeStr[32];
+                               if (getLocalTime(&timeinfo)) {
+                                 strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
+                               } else {
+                                 strcpy(timeStr, "Unknown");
+                               }
 
-                             Preferences prefs;
-                             prefs.begin("ota", false);
-                             prefs.clear();
-                             prefs.putString("last", timeStr);
-                             prefs.end();
-                             ESP.restart();
-                             return httpd_resp_send(req, "OK", 2);
-                           } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
-                         },
-                          nullptr };
+                               Preferences prefs;
+                               prefs.begin("ota", false);
+                               prefs.clear();
+                               prefs.putString("last", timeStr);
+                               prefs.end();
+                               ESP.restart();
+                               return httpd_resp_send(req, "OK", 2);
+                             } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
+                           },
+                            nullptr };
 
   httpd_uri_t ws_uri = {
     .uri = "/ws",

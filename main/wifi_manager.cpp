@@ -37,6 +37,8 @@ void WiFiManager::loadFromPrefs() {
     password = prefs.getString("password", "");
     enableSTA = prefs.getBool("enableSTA", false);
     prefs.end();
+    LOG("[WIFI] Loaded settings: SSID='%s', Password='%s', Enabled=%s\n", 
+        ssid.c_str(), password.c_str(), enableSTA ? "true" : "false");
   } else {
     if (prefs.begin("gamelan_wifi", false)) {
       ssid = "";

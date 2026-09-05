@@ -19,6 +19,11 @@ void Solenoid::begin(uint8_t gpio, String note, uint8_t midiNote, uint8_t midiCh
 
 void Solenoid::hit(uint16_t duration) {
   if (!enabled) return;
+#if DEBUG_SOLENOID
+  if (!active) {
+    LOG("[SOLENOID]: Solenoid %d (Note: %s) turned ON\n", pin, note.c_str());
+  }
+#endif
   digitalWrite(pin, HIGH);
   active = true;
   offTime = esp_timer_get_time() + (duration * 1000ULL);
@@ -30,11 +35,19 @@ void Solenoid::update() {
     if (now >= offTime) {
       digitalWrite(pin, LOW);
       active = false;
+#if DEBUG_SOLENOID
+      LOG("[SOLENOID]: Solenoid %d (Note: %s) turned OFF\n", pin, note.c_str());
+#endif
     }
   }
 }
 
 void Solenoid::off() {
+#if DEBUG_SOLENOID
+  if (active) {
+    LOG("[SOLENOID]: Solenoid %d (Note: %s) turned OFF\n", pin, note.c_str());
+  }
+#endif
   digitalWrite(pin, LOW);
   active = false;
 }
@@ -119,11 +132,11 @@ bool SolenoidManager::saveConfig() {
     file.print(item[i].getMidiChannel());
     file.print(",");
     file.println(item[i].isEnabled() ? 1 : 0);
-    LOG("[SOLENOID]: Saved - Pin: %d, Note: %s, MIDI: %d, Channel: %d, Enabled: %d\n", item[i].getPin(), item[i].getNote().c_str(), item[i].getMidiNote(), item[i].getMidiChannel(), item[i].isEnabled());
   }
 
   file.flush();
   file.close();
+  LOG("[SOLENOID]: Configuration saved successfully (%d solenoids)\n", count);
   return true;
 }
 

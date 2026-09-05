@@ -7,6 +7,8 @@
 
 #define MAX_SOLENOID 24
 
+#define DEBUG_SOLENOID 0
+
 #define PCF8574_ADDRESS 0x21
 
 #define BUTTON_DEBOUNCE 40
