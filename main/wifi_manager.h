@@ -15,7 +15,7 @@ public:
 
   void stopAll();
 
-  void saveSettings(String ssid, String password, bool enableSTA);
+  void saveSettings(String ssid, String password, bool enableSTA, bool forceRestart = false);
   void getSettings(String &ssid, String &password, bool &enableSTA);
   bool isSTAEnabled();
 

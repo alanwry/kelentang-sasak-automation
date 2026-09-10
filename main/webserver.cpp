@@ -105,77 +105,88 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
   <title>Setup AP - ESP32-S3 WROOM-1U</title>
   <style>
-    :root { --bg-color: #0f172a; --card-bg: #1e293b; --text-main: #f1f5f9; --text-muted: #94a3b8; --accent: #38bdf8; --border: #334155; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
-    .card { background: var(--card-bg); padding: 24px; border-radius: 16px; width: 100%; max-width: 380px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); border: 1px solid var(--border); }
-    h2 { margin-top: 0; color: var(--accent); font-size: 1.3rem; margin-bottom: 20px; text-align: center; }
-    .input-group { display: flex; flex-direction: column; gap: 12px; }
-    input[type="text"] { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: #0f172a; color: white; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: border-color 0.2s; }
-    
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-      -webkit-appearance: none; 
-      margin: 0; 
+    :root { 
+      --bg-color: #0b1120; 
+      --card-bg: rgba(30, 41, 59, 0.7); 
+      --text-main: #f8fafc; 
+      --text-muted: #94a3b8; 
+      --accent: #00f0ff; 
+      --border: rgba(51, 65, 85, 0.6); 
+      --input-bg: rgba(15, 23, 42, 0.8);
+      --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
-    input[type=number] { -moz-appearance: textfield; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: radial-gradient(circle at top, #1e293b, #0f172a); color: var(--text-main); margin: 0; padding: 20px; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box; }
+    .card { background: var(--card-bg); padding: 24px; border-radius: 16px; width: 100%; max-width: 380px; box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0, 240, 255, 0.1); }
+    h2 { margin-top: 0; color: var(--accent); font-size: 1.4rem; margin-bottom: 20px; text-align: center; text-shadow: 0 0 10px rgba(0, 240, 255, 0.4); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 10px; }
+    .input-group { display: flex; flex-direction: column; gap: 14px; }
+    input[type="text"] { padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--input-bg); color: white; font-size: 0.95rem; box-sizing: border-box; outline: none; transition: all 0.3s; }
+    input[type="text"]:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(0, 240, 255, 0.3); }
     
-    .row { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; }
+    .row { display: flex; align-items: center; justify-content: space-between; background: rgba(0,0,0,0.2); padding: 10px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.02); }
     .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 24px; }
-    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-    input:checked + .slider { background-color: var(--accent); }
-    input:checked + .slider:before { transform: translateX(22px); background-color: #0f172a; }
-    button { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; width: 100%; background: var(--accent); color: #0f172a; font-size: 0.95rem; margin-top: 10px; transition: opacity 0.2s; }
-    button:hover { opacity: 0.9; }
-    footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 25px; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(51, 65, 85, 0.8); transition: .3s; border-radius: 24px; border: 1px solid var(--border); }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+    input:checked + .slider { background-color: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(0, 240, 255, 0.4); }
+    input:checked + .slider:before { transform: translateX(22px); background-color: #000; }
+    
+    button { padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 600; width: 100%; background: linear-gradient(135deg, var(--accent) 0%, #0088ff 100%); color: #000; font-size: 0.95rem; margin-top: 5px; transition: all 0.3s; box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); display: flex; justify-content: center; align-items: center; }
+    button:hover:not(:disabled) { box-shadow: 0 0 15px rgba(0, 240, 255, 0.5); transform: translateY(-2px); }
+    button:active:not(:disabled) { transform: translateY(0); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 25px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
 <div class="card">
-  <h2>WiFi Config</h2>
+  <h2>WiFi Configuration</h2>
   <div class="input-group">
-    <input type="text" id="wifiSsid" placeholder="SSID" />
+    <input type="text" id="wifiSsid" placeholder="WiFi Name (SSID)" />
     <input type="text" id="wifiPass" placeholder="Password" />
     <div class="row">
-      <label style="font-size: 0.9rem; color: var(--text-muted);">Enable WiFi</label>
+      <label style="font-size: 0.95rem; color: var(--text-main); font-weight: 500;">Enable WiFi Station</label>
       <label class="switch">
         <input type="checkbox" id="wifiEnable">
         <span class="slider"></span>
       </label>
     </div>
-    <button onclick="saveWifi()">Save and Apply</button>
+    <button id="btnSaveAP" onclick="saveWifi()">Save and Reset</button>
   </div>
 </div>
 <footer>&copy; 2026 AN ELECTRONIC | Mataram, Nusa Tenggara Barat</footer>
 <script>
-document.addEventListener("wheel", function(e){
-    if(document.activeElement && document.activeElement.type === "number"){
-        e.preventDefault();
-    }
-}, { passive: false });
-
-document.addEventListener("keydown", function(e){
-    if(document.activeElement && document.activeElement.type === "number"){
-        if(e.key === "ArrowUp" || e.key === "ArrowDown"){
-            e.preventDefault();
-        }
-    }
-});
-
 async function loadWifi() {
-    const res = await fetch('/api/wifi');
-    const config = await res.json();
-    document.getElementById('wifiSsid').value = config.ssid || "";
-    document.getElementById('wifiPass').value = config.pass || "";
-    document.getElementById('wifiEnable').checked = config.enable || false;
+    try {
+        const res = await fetch('/api/wifi');
+        const config = await res.json();
+        document.getElementById('wifiSsid').value = config.ssid || "";
+        document.getElementById('wifiPass').value = config.pass || "";
+        document.getElementById('wifiEnable').checked = config.enable || false;
+    } catch(e) {}
 }
 async function saveWifi() {
     const ssid = document.getElementById('wifiSsid').value;
     const enable = document.getElementById('wifiEnable').checked;
     if (enable && !ssid) { alert('SSID is required if STA is enabled!'); return; }
-    const res = await fetch('/api/wifi', { method: 'POST', body: JSON.stringify({ssid: ssid, pass: document.getElementById('wifiPass').value, enable: enable}) });
-    if (!res.ok) alert('Failed to save settings');
+    
+    const btn = document.getElementById('btnSaveAP');
+    btn.innerText = "Applying...";
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/wifi', { 
+            method: 'POST', 
+            body: JSON.stringify({ssid: ssid, pass: document.getElementById('wifiPass').value, enable: enable, restart: true}) 
+        });
+        if (!res.ok) throw new Error("Failed");
+        alert('Settings saved! ESP is rebooting to apply changes...');
+        await fetch('/api/reboot', { method: 'POST' });
+    } catch (e) {
+        alert('Failed to save settings');
+        btn.innerText = "Save and Reset";
+        btn.disabled = false;
+    }
 }
 loadWifi();
 </script>
@@ -188,169 +199,141 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 <html>
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ESP32-S3 WROOM-1U Dashboard</title>
   <style>
     :root { 
-      --bg-color: #0f172a; 
-      --card-bg: #1e293b; 
-      --text-main: #f1f5f9; 
+      --bg-color: #0b1120; 
+      --card-bg: rgba(30, 41, 59, 0.7); 
+      --text-main: #f8fafc; 
       --text-muted: #94a3b8; 
-      --accent: #38bdf8; 
-      --accent-hover: #0284c7;
-      --danger: #ef4444; 
-      --border: #334155; 
-      --input-bg: #0f172a;
+      --accent: #00f0ff; 
+      --accent-hover: #00c3cf;
+      --danger: #ff0055; 
+      --border: rgba(51, 65, 85, 0.6); 
+      --input-bg: rgba(15, 23, 42, 0.8);
+      --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
     * { box-sizing: border-box; }
-    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg-color); color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: radial-gradient(circle at top, #1e293b, #0f172a); background-attachment: fixed; color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
     
     header { width: 100%; max-width: 1280px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
-    header h1 { margin: 0; font-size: 1.5rem; color: var(--accent); letter-spacing: -0.025em; }
+    header h1 { margin: 0; font-size: 1.6rem; color: var(--accent); letter-spacing: -0.025em; text-shadow: 0 0 10px rgba(0, 240, 255, 0.4); }
+    .header-info { display: flex; gap: 15px; font-size: 0.9rem; color: var(--text-muted); background: var(--card-bg); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--border); backdrop-filter: blur(4px); }
     
-    /* Strict 3-Column Desktop Grid Layout */
-    .dashboard-grid { 
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px; 
-      width: 100%;
-      max-width: 1280px; 
-      margin: 0 auto; 
-    }
-
-    @media (max-width: 1024px) {
-      .dashboard-grid { grid-template-columns: repeat(2, 1fr); }
-    }
-
-    @media (max-width: 640px) {
-      .dashboard-grid { grid-template-columns: 1fr; }
-    }
+    .dashboard-grid { column-count: 3; column-gap: 20px; width: 100%; max-width: 1280px; margin: 0 auto; }
+    @media (max-width: 1024px) { .dashboard-grid { column-count: 2; } }
+    @media (max-width: 768px) { .dashboard-grid { column-count: 1; } .header-info { flex-direction: column; gap: 5px; align-items: flex-end;} }
     
-    /* min-width: 0 mencegah elemen di dalam kartu merusak lebar grid */
-    .card { background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); border: 1px solid var(--border); display: flex; flex-direction: column; width: 100%; min-width: 0; }
+    .card { break-inside: avoid; margin-bottom: 20px; background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; width: 100%; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0, 240, 255, 0.1); }
     
-    h2 { margin-top: 0; margin-bottom: 14px; color: var(--accent); font-size: 1.1rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; }
+    h2 { margin-top: 0; margin-bottom: 14px; color: var(--accent); font-size: 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.2); }
     .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .row-wrap { flex-wrap: wrap; }
     
-    input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.85rem; flex-grow: 1; outline: none; transition: border-color 0.2s; width: 100%; }
-    
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-      -webkit-appearance: none; 
-      margin: 0; 
-    }
+    input[type="text"], input[type="number"] { padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--input-bg); color: white; font-size: 0.85rem; flex-grow: 1; outline: none; transition: all 0.3s; width: 100%; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
-    
-    input:focus { border-color: var(--accent); }
+    input:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(0, 240, 255, 0.3); }
+    input:disabled { opacity: 0.6; cursor: not-allowed; background: rgba(0,0,0,0.2); }
     
     button, .btn { padding: 9px 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-    button:hover, .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    button:active, .btn:active { transform: translateY(0); }
-    .primary { background: var(--accent); color: #0f172a; }
-    .danger { background: var(--danger); color: white; }
+    button:hover:not(:disabled) { transform: translateY(-2px); }
+    button:active:not(:disabled) { transform: translateY(0); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    .primary { background: linear-gradient(135deg, var(--accent) 0%, #0088ff 100%); color: #000; box-shadow: 0 0 10px rgba(0, 240, 255, 0.2); }
+    .primary:hover:not(:disabled) { box-shadow: 0 0 15px rgba(0, 240, 255, 0.5); }
+    .danger { background: linear-gradient(135deg, var(--danger) 0%, #cc0044 100%); color: white; box-shadow: 0 0 10px rgba(255, 0, 85, 0.2); }
+    .danger:hover:not(:disabled) { box-shadow: 0 0 15px rgba(255, 0, 85, 0.5); }
     
     .switch { position: relative; display: inline-block; width: 44px; height: 22px; flex-shrink: 0; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #334155; transition: .3s; border-radius: 22px; }
-    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
-    input:checked + .slider { background-color: var(--accent); }
-    input:checked + .slider:before { transform: translateX(22px); background-color: #0f172a; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(51, 65, 85, 0.8); transition: .3s; border-radius: 22px; border: 1px solid var(--border); }
+    .slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 2px; bottom: 2px; background-color: white; transition: .3s; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+    input:checked + .slider { background-color: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px rgba(0, 240, 255, 0.4); }
+    input:checked + .slider:before { transform: translateX(22px); background-color: #000; }
 
-    .file-label { padding: 9px 12px; border: 1px dashed var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; transition: border-color 0.2s; }
-    .file-label:hover { border-color: var(--accent); color: var(--text-main); }
+    .file-label { padding: 9px 12px; border: 1px dashed var(--border); border-radius: 8px; background: var(--input-bg); color: var(--text-muted); cursor: pointer; flex-grow: 1; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; transition: all 0.3s; }
+    .file-label:hover { border-color: var(--accent); color: var(--accent); background: rgba(0, 240, 255, 0.05); }
     
-    /* Scrollbar Custom */
     .scroll-body::-webkit-scrollbar, #logContainer::-webkit-scrollbar { width: 8px; height: 8px; }
-    .scroll-body::-webkit-scrollbar-track, #logContainer::-webkit-scrollbar-track { background: var(--input-bg); border-radius: 4px; }
+    .scroll-body::-webkit-scrollbar-track, #logContainer::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
     .scroll-body::-webkit-scrollbar-thumb, #logContainer::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
     .scroll-body::-webkit-scrollbar-thumb:hover, #logContainer::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
-    /* Container Tabel */
-    .scroll-container { border: 1px solid var(--border); border-radius: 8px; background: #0f172a; overflow-x: auto; overflow-y: hidden; }
-    .scroll-body { max-height: 200px; overflow-y: auto; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; min-width: 320px; }
+    .scroll-container { border: 1px solid var(--border); border-radius: 8px; background: rgba(15, 23, 42, 0.6); overflow: hidden; backdrop-filter: blur(4px); }
+    .scroll-body { max-height: 250px; overflow-y: auto; overflow-x: hidden; padding: 4px; }
     
-    /* Alignment Tabel */
-    thead th, td { padding: 8px 4px; border-bottom: 1px solid rgba(255,255,255,0.03); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; text-align: center; }
-    thead th { background: #1a2436; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; border-bottom: 1px solid var(--border); text-align: center; }
-    
-    /* Column Definition */
-    .col-name { text-align: left !important; padding-left: 10px !important; }
-    .col-f-size { width: 75px; text-align: center !important; }
-    .col-f-action { width: 75px; text-align: center !important; }
+    table { width: 100%; border-collapse: separate; border-spacing: 0 6px; table-layout: fixed; }
+    th { background: transparent; font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; padding: 4px 4px 8px 4px; text-align: center; font-weight: 600; border: none; letter-spacing: 0.5px; }
+    td { padding: 0; background: rgba(0,0,0,0.2); border: none; }
+    td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+    td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
+    tbody tr { transition: all 0.2s; }
+    tbody tr:hover td { background: rgba(0, 240, 255, 0.06); }
 
-    .col-pin { width: 45px; text-align: center !important; }
-    .col-note { width: 60px; text-align: center !important; }
-    .col-midi { width: 60px; text-align: center !important; }
-    .col-ch { width: 45px; text-align: center !important; }
-    .col-en { width: 35px; text-align: center !important; }
-    .col-s-action { width: 130px; text-align: center !important; }
+    .cell-content { display: flex; align-items: center; justify-content: center; min-height: 42px; width: 100%; font-size: 0.85rem; }
+    .cell-content input[type="text"] { height: 28px; width: 90%; padding: 0 4px; text-align: center; font-size: 0.8rem; margin: 0; box-sizing: border-box; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 4px; color: white; }
+    .cell-content input[type="text"]:focus { border-color: var(--accent); }
+    .cell-content input[type="checkbox"] { margin: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
+    .cell-content .action-btn { height: 28px; padding: 0 8px; font-size: 0.75rem; margin: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: 600; line-height: 1; }
+    
+    .truncate-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; line-height: 42px; }
 
-    /* Log System Styling */
-    #logContainer {
-      background: #0f172a;
-      padding: 10px;
-      font-family: monospace;
-      font-size: 0.75rem;
-      color: #10b981;
-      height: 200px;
-      max-height: 200px;
-      overflow-y: auto !important;
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
+    .col-name { width: 45%; text-align: left !important; padding-left: 10px !important; }
+    .col-f-size { width: 25%; }
+    .col-f-action { width: 30%; }
     
-    tr:last-child td { border-bottom: none; }
+    .col-pin { width: 12%; }
+    .col-note { width: 15%; }
+    .col-midi { width: 18%; }
+    .col-ch { width: 12%; }
+    .col-en { width: 13%; }
+    .col-s-action { width: 30%; }
+
+    #logContainer { background: rgba(0,0,0,0.4); padding: 10px; font-family: 'Consolas', monospace; font-size: 0.75rem; color: #00ffaa; height: 200px; max-height: 200px; overflow-y: auto !important; white-space: pre-wrap; word-break: break-all; border-radius: 0 0 8px 8px; text-shadow: 0 0 2px rgba(0,255,170,0.3); }
     
-    .progress-bg { background: #334155; border-radius: 8px; height: 10px; overflow: hidden; margin: 8px 0; }
-    .progress-bar { background: var(--accent); height: 100%; width: 0%; transition: width 0.3s ease; }
+    .progress-bg { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; height: 12px; overflow: hidden; margin: 8px 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
+    .progress-bar { background: linear-gradient(90deg, #0088ff, var(--accent)); height: 100%; width: 0%; transition: width 0.3s ease; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
     
-    footer { text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 1280px; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 1280px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
 
 <header>
   <h1>KELENTANG ROBOT</h1>
-  <span style="font-size: 0.9rem; color: var(--text-muted);"><span id="tempDisplay">--.-°C</span></span>
+  <div class="header-info">
+    <span>IP : <strong style="color: var(--accent);">{{IP_ADDRESS}}</strong></span>
+    <!-- Sinyal Wrapper selalu tampil, default abu-abu -->
+    <span id="rssiWrapper" style="display:inline-flex; align-items:center; gap:6px;">Signal : <span id="rssiBarContainer" style="display:inline-flex; align-items:flex-end; gap:2px; height:14px; width:22px;"><span id="sig1" style="width:3px; height:25%; background:#555; border-radius:1px;"></span><span id="sig2" style="width:3px; height:50%; background:#555; border-radius:1px;"></span><span id="sig3" style="width:3px; height:75%; background:#555; border-radius:1px;"></span><span id="sig4" style="width:3px; height:100%; background:#555; border-radius:1px;"></span></span> <strong id="rssiVal" style="color: var(--accent);">-- dBm</strong></span>
+    <span>ESP : <strong id="tempDisplay" style="color: var(--accent);">--.-°C</strong></span>
+  </div>
 </header>
 
 <div class="dashboard-grid">
 
-  <!-- BARIS 1 / KARTU 1: Player Control -->
   <div class="card">
     <h2>Player Control</h2>
-    <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Not playing</div>
+    <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Memeriksa status...</div>
     <div class="progress-bg"><div id="playerBar" class="progress-bar"></div></div>
     <div class="row" style="justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
       <span id="timeElapsed">0:00</span>
-      <span id="modeDisplay" style="background: var(--border); padding: 2px 6px; border-radius: 4px; color: var(--accent);">PlayOnce</span>
+      <span id="modeDisplay" style="background: rgba(51, 65, 85, 0.6); padding: 3px 8px; border-radius: 6px; color: var(--accent); border: 1px solid var(--border);">--</span>
       <span id="timeRemaining">0:00</span>
     </div>
-    <div class="row" style="justify-content: center; gap: 4px; margin-bottom: 0;">
-      <button onclick="sendCommand('prev')" class="primary" style="flex:1; padding: 8px 4px;">Previous</button>
+    <div class="row" style="justify-content: center; gap: 6px; margin-bottom: 0;">
+      <button onclick="sendCommand('prev')" class="primary" style="flex:1; padding: 8px 4px;">Prev</button>
       <button onclick="sendCommand('start')" class="primary" style="flex:1.2; padding: 8px 4px;" id="btnStart">Play</button>
       <button onclick="sendCommand('next')" class="primary" style="flex:1; padding: 8px 4px;">Next</button>
       <button onclick="sendCommand('mode')" class="primary" style="flex:1; padding: 8px 4px;">Mode</button>
     </div>
   </div>
 
-  <!-- BARIS 1 / KARTU 2: Actuator Active Duration -->
   <div class="card">
-    <h2>Actuator Active Duration</h2>
-    <div style="font-size: 0.85rem; margin-bottom: 10px; color: var(--text-muted);">
-      Current Duration: <strong id="currentTime" style="color: var(--accent);">...</strong> ms
-    </div>
-    <div class="row" style="margin-bottom: 0;">
-      <input type="number" id="sTime" placeholder="Enter New Duration (ms)" />
-      <button onclick="saveTime()" class="primary">Save</button>
-    </div>
-  </div>
-
-  <!-- BARIS 1 / KARTU 3: MIDI File Manager -->
-  <div class="card">
-    <h2>MIDI File Manager</h2>
+    <h2>File Manager</h2>
     <div class="row">
       <label for="fileInput" class="file-label" onclick="document.getElementById('fileInput').click()">Select MIDI File</label>
       <input type="file" id="fileInput" accept=".mid,.midi" style="display:none;" onchange="document.querySelector('label[for=\'fileInput\']').innerText = this.files[0].name" />
@@ -361,37 +344,38 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         <thead><tr><th class="col-name">Name</th><th class="col-f-size">Size</th><th class="col-f-action">Action</th></tr></thead>
       </table>
       <div class="scroll-body">
-        <table>
-          <tbody id="fileBody"></tbody>
-        </table>
+        <!-- Placeholder loading -->
+        <table><tbody id="fileBody"><tr><td colspan="3" style="padding:15px; color:var(--text-muted);">Membaca SD Card...</td></tr></tbody></table>
       </div>
     </div>
-    <div id="storageInfo" style="margin-top: 8px; font-size: 0.75rem; color: var(--text-muted); text-align: center;"></div>
+    <div id="storageInfo" style="margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); text-align: center; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px;">Menghitung kapasitas...</div>
   </div>
 
-  <!-- BARIS 2 / KARTU 4: System Log -->
   <div class="card">
-    <h2>System Log</h2>
-    <div class="scroll-container">
-      <div id="logContainer"></div>
+    <h2>Actuator Duration</h2>
+    <div style="font-size: 0.85rem; margin-bottom: 10px; color: var(--text-muted);">
+      Current Duration : <strong id="currentTime" style="color: var(--accent); font-size: 1.1em;">...</strong> ms
     </div>
-    <button onclick="document.getElementById('logContainer').innerText = ''" class="danger" style="margin-top: 10px; align-self: flex-start;">Clear Log</button>
+    <div class="row" style="margin-bottom: 0;">
+      <input type="number" id="sTime" placeholder="Enter New Duration (ms)" />
+      <button onclick="saveTime()" class="primary">Save</button>
+    </div>
   </div>
 
-  <!-- BARIS 2 / KARTU 5: Actuator Manager -->
   <div class="card">
     <h2>Actuator Manager</h2>
     <div class="row row-wrap" style="gap: 6px; margin-bottom: 8px;">
-      <input type="number" id="sPin" placeholder="GPIO" style="flex: 1; min-width: 60px;" />
-      <input type="text" id="sNote" placeholder="Note" style="flex: 1; min-width: 60px;" />
-      <input type="number" id="sMidi" placeholder="MIDI" style="flex: 1; min-width: 60px;" />
-      <input type="number" id="sChannel" placeholder="Ch" style="flex: 1; min-width: 50px;" />
+      <input type="number" id="sPin" placeholder="GPIO" style="flex: 1; min-width: 40px;" />
+      <input type="text" id="sNote" placeholder="Note" style="flex: 1; min-width: 40px;" />
+      <input type="number" id="sMidi" placeholder="MIDI" style="flex: 1; min-width: 40px;" />
+      <input type="number" id="sChannel" placeholder="Channel" style="flex: 1; min-width: 40px;" />
     </div>
     <div class="row" style="gap: 6px; margin-bottom: 10px;">
       <button onclick="backupConfig()" class="primary" style="flex: 1; padding: 6px;">Backup</button>
       <input type="file" id="restoreInput" style="display:none;" onchange="restoreConfig()" />
       <button onclick="document.getElementById('restoreInput').click()" class="danger" style="flex: 1; padding: 6px;">Restore</button>
       <button onclick="addSolenoid()" class="primary" style="flex: 1; padding: 6px;">Add</button>
+      <button id="globalEditBtn" onclick="toggleEditMode()" class="primary" style="flex: 1; padding: 6px;">Edit</button>
     </div>
     <div class="scroll-container">
       <table>
@@ -407,45 +391,50 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         </thead>
       </table>
       <div class="scroll-body">
-        <table>
-          <tbody id="solenoidBody"></tbody>
-        </table>
+        <!-- Placeholder loading -->
+        <table><tbody id="solenoidBody"><tr><td colspan="6" style="padding:15px; color:var(--text-muted);">Membaca konfigurasi alat...</td></tr></tbody></table>
       </div>
     </div>
   </div>
 
-  <!-- BARIS 2 / KARTU 6: WiFi Manager -->
   <div class="card">
-    <h2>WiFi Manager</h2>
-    <div style="display: flex; flex-direction: column; gap: 8px;">
+    <h2>WiFi Configuration</h2>
+    <div style="display: flex; flex-direction: column; gap: 10px;">
       <input type="text" id="wifiSsid" placeholder="SSID" />
       <input type="text" id="wifiPass" placeholder="Password" />
-      <div class="row" style="justify-content: space-between; margin-top: 4px; margin-bottom: 4px;">
-        <label style="font-size: 0.85rem; color: var(--text-muted);">Enable WiFi</label>
+      <div class="row" style="justify-content: space-between; background: rgba(0,0,0,0.2); padding: 8px 12px; border-radius: 8px;">
+        <label style="font-size: 0.9rem; color: var(--text-main);">Enable WiFi Station</label>
         <label class="switch">
           <input type="checkbox" id="wifiEnable">
           <span class="slider"></span>
         </label>
       </div>
-      <button onclick="saveWifi()" class="primary" style="width: 100%;">Save and Apply</button>
+      <button id="btnSaveWifiSTA" onclick="saveWifi()" class="primary" style="width: 100%; margin-top: 5px;">Save and Apply</button>
     </div>
   </div>
 
-  <!-- BARIS 3 / KARTU 7: Update Firmware -->
   <div class="card">
     <h2>Update Firmware</h2>
     <div style="display: flex; flex-direction: column; gap: 8px;">
-      <div style="font-size: 0.8rem;">Version: <strong style="color: var(--accent);">{{FW_VERSION}}</strong></div>
-      <div class="row" style="margin-bottom: 0;">
+      <div style="font-size: 0.85rem;">Version : <strong style="color: var(--accent); font-size: 1.1em;">{{FW_VERSION}}</strong></div>
+      <div class="row" style="margin-bottom: 0; margin-top: 5px;">
         <label for="otaBinInput" class="file-label" onclick="document.getElementById('otaBinInput').click()">Select BIN File</label>
         <input type="file" id="otaBinInput" accept=".bin" style="display:none;" onchange="document.querySelector('label[for=\'otaBinInput\']').innerText = this.files[0].name" />
-        <button onclick="uploadOta()" class="primary">Update</button>
+        <button onclick="uploadOta()" class="danger">Update</button>
       </div>
-      <div style="font-size: 0.75rem; color: var(--text-muted);">
-        <span>Last Update: {{LAST_UPDATE}}</span>
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 5px;">
+        <span>Last Update : {{LAST_UPDATE}}</span>
       </div>
-      <div class="progress-bg"><div id="otaBar" class="progress-bar"></div></div>
+      <div class="progress-bg"><div id="otaBar" class="progress-bar" style="background: linear-gradient(90deg, #ff0055, #ff6600); box-shadow: 0 0 10px rgba(255,0,85,0.5);"></div></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>System Log</h2>
+    <div class="scroll-container">
+      <div id="logContainer"></div>
+    </div>
+    <button onclick="document.getElementById('logContainer').innerText = ''" class="danger" style="margin-top: 10px; align-self: flex-start;">Clear Log</button>
   </div>
 
 </div>
@@ -456,30 +445,79 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
 <script>
 document.addEventListener("wheel", function(e){
-    if(document.activeElement && document.activeElement.type === "number"){
-        e.preventDefault();
-    }
+    if(document.activeElement && document.activeElement.type === "number") e.preventDefault();
 }, { passive: false });
-
 document.addEventListener("keydown", function(e){
     if(document.activeElement && document.activeElement.type === "number"){
-        if(e.key === "ArrowUp" || e.key === "ArrowDown"){
-            e.preventDefault();
-        }
+        if(e.key === "ArrowUp" || e.key === "ArrowDown") e.preventDefault();
     }
 });
 
 const noteMap = {{NOTE_MAP}};
 const allowedPins = {{ALLOWED_PINS}};
+
+let isEditMode = false;
+let dataTimer = null;
+let isFetching = false;
+let isSavingWifi = false;
+
+function toggleEditMode() {
+    isEditMode = !isEditMode;
+    const btn = document.getElementById('globalEditBtn');
+    btn.innerText = isEditMode ? "Save" : "Edit";
+    btn.className = isEditMode ? "danger" : "primary";
+    
+    if (!isEditMode) {
+        saveAll();
+    } else {
+        const sBody = document.getElementById('solenoidBody');
+        if (sBody) {
+            const inputs = sBody.querySelectorAll('input');
+            inputs.forEach(input => input.disabled = false);
+            const btns = sBody.querySelectorAll('.action-btn');
+            btns.forEach(b => b.disabled = true);
+        }
+    }
+}
+
+async function saveAll() {
+    const sBody = document.getElementById('solenoidBody');
+    const rows = sBody.querySelectorAll('tr');
+    let solenoids = [];
+    
+    rows.forEach(row => {
+        const pin = parseInt(row.querySelector('.col-pin .cell-content').innerText);
+        const note = row.querySelector('.col-note .cell-content').innerText;
+        const midiInput = row.querySelector(`input[id^="editMidi-"]`);
+        const chInput = row.querySelector(`input[id^="editCh-"]`);
+        const enInput = row.querySelector(`input[id^="editEn-"]`);
+        
+        if (midiInput && chInput && enInput) {
+            const midi = parseInt(midiInput.value);
+            const ch = parseInt(chInput.value);
+            const enabled = enInput.checked;
+            solenoids.push({pin, note, midi, ch, en: enabled ? 1 : 0});
+        }
+    });
+    
+    sBody.querySelectorAll('input').forEach(input => input.disabled = true);
+    
+    await fetch('/api/solenoids', { 
+        method: 'POST', 
+        body: JSON.stringify(solenoids), 
+        headers: {'Content-Type': 'application/json'} 
+    });
+    
+    if(dataTimer) clearTimeout(dataTimer);
+    loadData();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('sNote').addEventListener('input', (e) => {
         const noteInput = e.target.value.toLowerCase().trim();
         const midiInput = document.getElementById('sMidi');
-        if (noteMap[noteInput]) {
-            midiInput.value = noteMap[noteInput];
-        } else {
-            midiInput.value = "";
-        }
+        if (noteMap[noteInput]) midiInput.value = noteMap[noteInput];
+        else midiInput.value = "";
     });
 });
 
@@ -496,91 +534,142 @@ async function uploadOta() {
         if (e.lengthComputable) bar.style.width = (e.loaded / e.total) * 100 + '%';
     };
     xhr.onload = () => {
-        if (xhr.status === 200) {
-            alert('Update Success! Restarting...');
-            location.reload();
-        } else {
-            alert('Update Failed');
-        }
+        if (xhr.status === 200) { alert('Update Success! Restarting...'); location.reload(); }
+        else { alert('Update Failed'); bar.style.width = '0%'; }
     };
     xhr.send(fileInput.files[0]);
 }
 
 async function sendCommand(cmd) {
     await fetch('/api/player/cmd?action='+cmd, { method: 'POST' });
+    if(dataTimer) clearTimeout(dataTimer);
     loadData();
 }
 
 async function loadData() {
+    if (isFetching || isSavingWifi) return; 
+    isFetching = true;
     const t = Date.now();
     
+    // 1. Fetch RSSI
+    try {
+        const resRssi = await fetch('/api/rssi?t=' + t);
+        if (resRssi.ok) {
+            const rssiText = await resRssi.text();
+            const rssi = parseInt(rssiText);
+            const rssiVal = document.getElementById('rssiVal');
+            
+            const sig1 = document.getElementById('sig1'); const sig2 = document.getElementById('sig2');
+            const sig3 = document.getElementById('sig3'); const sig4 = document.getElementById('sig4');
+            
+            sig1.style.background = '#555'; sig2.style.background = '#555';
+            sig3.style.background = '#555'; sig4.style.background = '#555';
+            
+            if (rssi !== 0 && !isNaN(rssi)) {
+                rssiVal.innerText = rssi + ' dBm';
+                if (rssi >= -90) sig1.style.background = '#ff0055'; 
+                if (rssi >= -80) { sig1.style.background = '#ffcc00'; sig2.style.background = '#ffcc00'; }
+                if (rssi >= -70) { sig1.style.background = '#00f0ff'; sig2.style.background = '#00f0ff'; sig3.style.background = '#00f0ff'; }
+                if (rssi >= -60) { sig1.style.background = '#00ffaa'; sig2.style.background = '#00ffaa'; sig3.style.background = '#00ffaa'; sig4.style.background = '#00ffaa'; }
+            } else { 
+                rssiVal.innerText = '-- dBm';
+            }
+        }
+    } catch (e) { }
+
+    // 2. Fetch Temp
     try {
         const resTemp = await fetch('/api/temp?t=' + t);
-        const temp = await resTemp.text();
-        document.getElementById('tempDisplay').innerText = temp;
-    } catch (e) { console.error("Temp load error", e); }
+        if (resTemp.ok) document.getElementById('tempDisplay').innerText = await resTemp.text();
+    } catch (e) { }
     
+    // 3. Fetch Player
     try {
         const resP = await fetch('/api/player?t=' + t); 
-        const player = await resP.json();
-        document.getElementById('playerStatus').innerText = player.playing ? "Playing: " + player.file : (player.paused ? "Paused: " + player.file : "Stopped");
-        document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
-        document.getElementById('modeDisplay').innerText = player.auto ? "Continuous" : "PlayOnce";
-        const barWidth = player.duration > 0 ? (player.elapsed / player.duration * 100) : 0;
-        document.getElementById('playerBar').style.width = barWidth + '%';
-        const remaining = Math.max(0, player.duration - player.elapsed);
-        document.getElementById('timeElapsed').innerText = formatTime(player.elapsed);
-        document.getElementById('timeRemaining').innerText = formatTime(remaining);
-    } catch (e) { console.error("Player load error", e); }
+        if (resP.ok) {
+            const player = await resP.json();
+            const cleanName = player.file.replace(/\//g, '').replace(/\.(mid|midi)$/i, '');
+            document.getElementById('playerStatus').innerText = player.playing ? "Playing : " + cleanName : (player.paused ? "Paused : " + cleanName : "Stopped : " + cleanName);
+            document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
+            document.getElementById('modeDisplay').innerText = player.auto ? "Continuous" : "PlayOnce";
+            const barWidth = player.duration > 0 ? (player.elapsed / player.duration * 100) : 0;
+            document.getElementById('playerBar').style.width = barWidth + '%';
+            const remaining = Math.max(0, player.duration - player.elapsed);
+            document.getElementById('timeElapsed').innerText = formatTime(player.elapsed);
+            document.getElementById('timeRemaining').innerText = formatTime(remaining);
+        }
+    } catch (e) { }
 
+    // 4. Fetch Solenoids
     try {
         const resS = await fetch('/api/solenoids?t=' + t);
-        const solenoids = await resS.json();
-        const sBody = document.getElementById('solenoidBody');
-        
-        const activeEl = document.activeElement;
-        const isTypingInTable = sBody && sBody.contains(activeEl) && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
-
-        if (!isTypingInTable) {
-            sBody.innerHTML = '';
-            solenoids.forEach(s => { sBody.innerHTML += `<tr>
-                <td class="col-pin">${s.pin}</td>
-                <td class="col-note"><input type="text" id="editNote-${s.pin}" value="${s.note}" style="width:100%; padding: 4px 2px; text-align: center;"></td>
-                <td class="col-midi"><input type="text" id="editMidi-${s.pin}" value="${s.midi}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
-                <td class="col-ch"><input type="text" id="editCh-${s.pin}" value="${s.ch}" style="width:100%; padding: 4px 2px; text-align: center;" oninput="this.value = this.value.replace(/[^0-9]/g, '')"></td>
-                <td class="col-en"><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''}></td>
-                <td class="col-s-action">
-                    <button class="primary" style="padding: 3px 4px; font-size: 0.7rem;" onclick="testSolenoid(${s.pin})">Play</button>
-                    <button class="primary" style="padding: 3px 4px; font-size: 0.7rem;" onclick="saveEdit(${s.pin})">Save</button>
-                    <button class="danger" style="padding: 3px 4px; font-size: 0.7rem;" onclick="removeSolenoid(${s.pin})">Delete</button>
-                </td>
-            </tr>`; });
+        if (resS.ok && !isEditMode) {
+            const solenoids = await resS.json();
+            const sBody = document.getElementById('solenoidBody');
+            
+            if (solenoids.length === 0) {
+                sBody.innerHTML = `<tr><td colspan="6" style="padding:15px; color:var(--text-muted);">Belum ada aktuator disetel</td></tr>`;
+            } else {
+                sBody.innerHTML = '';
+                solenoids.forEach(s => { 
+                    sBody.innerHTML += `<tr>
+                    <td class="col-pin"><div class="cell-content">${s.pin}</div></td>
+                    <td class="col-note" title="${s.note}"><div class="cell-content truncate-text">${s.note}</div></td>
+                    <td class="col-midi"><div class="cell-content"><input type="text" id="editMidi-${s.pin}" value="${s.midi}" disabled oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div></td>
+                    <td class="col-ch"><div class="cell-content"><input type="text" id="editCh-${s.pin}" value="${s.ch}" disabled oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div></td>
+                    <td class="col-en"><div class="cell-content"><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''} disabled></div></td>
+                    <td class="col-s-action">
+                        <div class="cell-content" style="gap:4px;">
+                            <button class="primary action-btn" style="flex:1;" onclick="testSolenoid(${s.pin})">Play</button>
+                            <button class="danger action-btn" style="flex:1;" onclick="removeSolenoid(${s.pin})">Del</button>
+                        </div>
+                    </td>
+                </tr>`; });
+            }
         }
-    } catch (e) { console.error("Solenoids load error", e); }
+    } catch (e) { }
 
+    // 5. Fetch File
     try {
         const resF = await fetch('/api/files?t=' + t); 
-        const filesRes = await resF.json();
-        const fBody = document.getElementById('fileBody'); fBody.innerHTML = '';
-        filesRes.files.forEach(f => { 
-          fBody.innerHTML += `<tr>
-            <td class="col-name">${f.name}</td>
-            <td class="col-f-size">${formatSize(f.size)}</td>
-            <td class="col-f-action"><button class="danger" style="padding: 3px 6px; font-size: 0.7rem;" onclick="deleteFile('${f.name}')">Delete</button></td>
-          </tr>`; 
-        });
-        const sInfo = document.getElementById('storageInfo');
-        if (filesRes.storage) {
-            const used = filesRes.storage.total - filesRes.storage.free;
-            sInfo.innerText = `Total: ${formatSize(filesRes.storage.total)} | Used: ${formatSize(used)} | Free: ${formatSize(filesRes.storage.free)}`;
-        } else sInfo.innerText = 'SD Card not detected';
-    } catch (e) { console.error("Files load error", e); }
+        if (resF.ok) {
+            const filesRes = await resF.json();
+            const fBody = document.getElementById('fileBody'); 
+            
+            if (filesRes.files.length === 0) {
+                fBody.innerHTML = `<tr><td colspan="3" style="padding:15px; color:var(--text-muted);">Tidak ada file MIDI di SD Card</td></tr>`;
+            } else {
+                fBody.innerHTML = '';
+                filesRes.files.forEach(f => { 
+                  fBody.innerHTML += `<tr>
+                    <td class="col-name" title="${f.name}"><div class="cell-content truncate-text" style="padding-left: 10px; text-align: left;">${f.name}</div></td>
+                    <td class="col-f-size"><div class="cell-content">${formatSize(f.size)}</div></td>
+                    <td class="col-f-action"><div class="cell-content"><button class="danger action-btn" style="width: 90%;" onclick="deleteFile('${f.name}')">Delete</button></div></td>
+                  </tr>`; 
+                });
+            }
+            
+            const sInfo = document.getElementById('storageInfo');
+            if (filesRes.storage) {
+                const used = filesRes.storage.total - filesRes.storage.free;
+                sInfo.innerText = `Total : ${formatSize(filesRes.storage.total)} | Used : ${formatSize(used)} | Free : ${formatSize(filesRes.storage.free)}`;
+            } else {
+                sInfo.innerText = 'SD Card not detected';
+            }
+        }
+    } catch (e) { }
 
+    // 6. Fetch Time
     try {
         const resT = await fetch('/api/time?t=' + t); 
-        const time = await resT.json();
-        document.getElementById('currentTime').innerText = time;
-    } catch (e) { console.error("Time load error", e); }
+        if (resT.ok) document.getElementById('currentTime').innerText = await resT.text();
+    } catch (e) { }
+    
+    isFetching = false;
+    
+    if (!isSavingWifi) {
+        dataTimer = setTimeout(loadData, 1000);
+    }
 }
 
 function formatTime(ms) {
@@ -597,7 +686,7 @@ async function loadWifi() {
         document.getElementById('wifiSsid').value = config.ssid || "";
         document.getElementById('wifiPass').value = config.pass || "";
         document.getElementById('wifiEnable').checked = config.enable || false;
-    } catch (e) { console.error("Wifi load error", e); }
+    } catch (e) { }
 }
 
 function formatSize(bytes) {
@@ -620,7 +709,9 @@ async function restoreConfig() {
   const input = document.getElementById('restoreInput'); if(!input.files[0]) return;
   const text = await input.files[0].text();
   await fetch('/api/restore', { method: 'POST', body: text });
-  input.value = ''; loadData();
+  input.value = ''; 
+  if(dataTimer) clearTimeout(dataTimer);
+  loadData();
 }
 
 async function saveTime() {
@@ -629,7 +720,9 @@ async function saveTime() {
   if (!newTime || isNaN(parseInt(newTime))) { alert('Masukkan durasi angka yang valid!'); return; }
   if (newTime === currentTimeText) { alert('Duration is the same, not saved'); return; }
   await fetch('/api/time', { method: 'POST', body: newTime });
-  timeInput.value = ''; loadData();
+  timeInput.value = ''; 
+  if(dataTimer) clearTimeout(dataTimer);
+  loadData();
 }
 
 async function uploadFile() {
@@ -638,7 +731,7 @@ async function uploadFile() {
   const response = await fetch('/upload', { method: 'POST', body: formData });
   const text = await response.text();
   if (text === "SKIP") alert('File already exists on SD Card!');
-  else if (text === "OK") { fileInput.value = ''; document.querySelector('label[for=\'fileInput\']').innerText = 'Select MIDI File'; loadData(); }
+  else if (text === "OK") { fileInput.value = ''; document.querySelector('label[for=\'fileInput\']').innerText = 'Select MIDI File'; if(dataTimer) clearTimeout(dataTimer); loadData(); }
   else alert('Failed to upload file');
 }
 
@@ -673,35 +766,8 @@ async function addSolenoid() {
   document.getElementById('sChannel').value = '';
   
   if (document.activeElement) document.activeElement.blur();
+  if(dataTimer) clearTimeout(dataTimer);
   loadData();
-}
-
-async function saveEdit(pin) {
-    const note = document.getElementById('editNote-' + pin).value.trim();
-    const midiRaw = document.getElementById('editMidi-' + pin).value.trim();
-    const chRaw = document.getElementById('editCh-' + pin).value.trim();
-    const enabled = document.getElementById('editEn-' + pin).checked;
-    
-    if (!midiRaw) { alert('MIDI Note wajib diisi!'); return; }
-    
-    const midi = parseInt(midiRaw);
-    const ch = chRaw === "" ? 0 : parseInt(chRaw);
-    
-    if (isNaN(midi) || isNaN(ch)) { alert('MIDI dan Channel harus berupa angka!'); return; }
-    if (ch < 0 || ch > 16) { alert('MIDI Channel harus antara 0 dan 16!'); return; }
-    
-    const resS = await fetch('/api/solenoids');
-    let solenoids = await resS.json();
-    const index = solenoids.findIndex(s => s.pin === pin);
-    if (index !== -1) {
-        solenoids[index].note = note || '-';
-        solenoids[index].midi = midi;
-        solenoids[index].ch = ch;
-        solenoids[index].en = enabled ? 1 : 0;
-        await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
-        if (document.activeElement) document.activeElement.blur();
-        loadData();
-    }
 }
 
 async function removeSolenoid(pin) {
@@ -710,18 +776,51 @@ async function removeSolenoid(pin) {
   let solenoids = await resS.json();
   solenoids = solenoids.filter(s => s.pin !== pin);
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
+  if(dataTimer) clearTimeout(dataTimer);
   loadData();
 }
 
 async function saveWifi() {
-  const ssid = document.getElementById('wifiSsid').value; const pass = document.getElementById('wifiPass').value; const enable = document.getElementById('wifiEnable').checked;
+  const ssid = document.getElementById('wifiSsid').value; 
+  const pass = document.getElementById('wifiPass').value; 
+  const enable = document.getElementById('wifiEnable').checked;
   if (!ssid && enable) { alert('SSID is required if STA is enabled!'); return; }
-  const res = await fetch('/api/wifi', { method: 'POST', body: JSON.stringify({ssid: ssid, pass: pass, enable: enable}) });
-  if (res.ok) setTimeout(loadWifi, 500); else alert('Failed to save settings');
+  
+  isSavingWifi = true;
+  if (dataTimer) clearTimeout(dataTimer);
+
+  const btn = document.getElementById('btnSaveWifiSTA');
+  btn.innerText = "Applying...";
+  btn.disabled = true;
+  
+  try {
+      const res = await fetch('/api/wifi', { 
+          method: 'POST', 
+          body: JSON.stringify({ssid: ssid, pass: pass, enable: enable, restart: false}) 
+      });
+      if (res.ok) alert('WiFi settings applied! Trying to connect in background...');
+      else alert('Failed to save settings');
+  } catch(e) {
+      console.log("Connection interrupted during WiFi save (expected behavior)");
+  }
+
+  btn.innerText = "Save and Apply";
+  btn.disabled = false;
+  
+  isSavingWifi = false;
+  dataTimer = setTimeout(loadData, 2000); 
+  loadWifi();
 }
 
-async function deleteFile(name) { await fetch('/api/files?name='+name, { method: 'DELETE' }); loadData(); }
-setInterval(loadData, 1000); loadData(); loadWifi();
+async function deleteFile(name) { 
+    await fetch('/api/files?name='+name, { method: 'DELETE' }); 
+    if(dataTimer) clearTimeout(dataTimer);
+    loadData(); 
+}
+
+// Mulai Fetch Pertama Kali
+loadData(); 
+loadWifi();
 
 let ws = null;
 let wsPingInterval = null;
@@ -730,50 +829,30 @@ function initWebSocket() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
         return;
     }
-
     ws = new WebSocket('ws://' + window.location.hostname + '/ws');
-
     ws.onopen = () => {
-        console.log("WebSocket Connected");
         ws.send("ping");
-
         if (wsPingInterval) clearInterval(wsPingInterval);
         wsPingInterval = setInterval(() => {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                try {
-                    ws.send("ping");
-                } catch (e) {
-                    ws.close();
-                }
-            } else {
-                if (ws) ws.close();
-            }
+                try { ws.send("ping"); } catch (e) { ws.close(); }
+            } else { if (ws) ws.close(); }
         }, 3000);
     };
-
     ws.onmessage = (event) => {
         const logContainer = document.getElementById('logContainer');
         if (logContainer) {
             logContainer.innerText += event.data;
-            if (logContainer.innerText.length > 5000) {
-                logContainer.innerText = logContainer.innerText.substring(logContainer.innerText.length - 5000);
-            }
+            if (logContainer.innerText.length > 5000) logContainer.innerText = logContainer.innerText.substring(logContainer.innerText.length - 5000);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
     };
-
-    ws.onerror = (err) => {
-        console.error("WS Error:", err);
-        if (ws) ws.close();
-    };
-
+    ws.onerror = (err) => { if (ws) ws.close(); };
     ws.onclose = () => {
         if (wsPingInterval) clearInterval(wsPingInterval);
-        console.log("WS Disconnected, reconnecting in 2s...");
         setTimeout(initWebSocket, 2000);
     };
 }
-
 initWebSocket();
 </script>
 </body>
@@ -797,6 +876,9 @@ esp_err_t root_handler(httpd_req_t *req) {
   }
   pinsJs += "]";
   output.replace("{{ALLOWED_PINS}}", pinsJs);
+
+  String ipAddr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  output.replace("{{IP_ADDRESS}}", ipAddr);
 
   httpd_resp_set_type(req, "text/html");
   return httpd_resp_send(req, output.c_str(), HTTPD_RESP_USE_STRLEN);
@@ -865,7 +947,7 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
     if (ret > 0) {
       std::vector<std::pair<int, bool>> old_states;
       for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-        old_states.push_back({solenoid.getItems()[i].getPin(), solenoid.getItems()[i].isEnabled()});
+        old_states.push_back({ solenoid.getItems()[i].getPin(), solenoid.getItems()[i].isEnabled() });
       }
 
       while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
@@ -1075,7 +1157,17 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
           else if (val.startsWith("false")) enable = false;
         }
       }
-      wifiManager.saveSettings(ssid, pass, enable);
+      int rIdx = data.indexOf("\"restart\":");
+      bool restart = false;
+      if (rIdx != -1) {
+        int colonIdx = data.indexOf(":", rIdx);
+        if (colonIdx != -1) {
+          String val = data.substring(colonIdx + 1);
+          val.trim();
+          if (val.startsWith("true")) restart = true;
+        }
+      }
+      wifiManager.saveSettings(ssid, pass, enable, restart);
       httpd_resp_send(req, "OK", 2);
     }
     return ESP_OK;
@@ -1138,6 +1230,13 @@ esp_err_t ws_handler(httpd_req_t *req) {
   return ESP_OK;
 }
 
+auto reboot_handler = [](httpd_req_t *req) {
+  httpd_resp_send(req, "OK", 2);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  ESP.restart();
+  return ESP_OK;
+};
+
 void WebServerManager::beginAPMinimal() {
   if (active) return;
   if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
@@ -1154,10 +1253,12 @@ void WebServerManager::beginAPMinimal() {
   httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
   httpd_uri_t wifi_get_uri = { "/api/wifi", HTTP_GET, api_wifi_handler, nullptr };
   httpd_uri_t wifi_post_uri = { "/api/wifi", HTTP_POST, api_wifi_handler, nullptr };
+  httpd_uri_t reboot_post_uri = { "/api/reboot", HTTP_POST, reboot_handler, nullptr };
 
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &wifi_get_uri);
   httpd_register_uri_handler(server, &wifi_post_uri);
+  httpd_register_uri_handler(server, &reboot_post_uri);
 
   active = true;
 }
@@ -1204,6 +1305,14 @@ void WebServerManager::beginSTAFull() {
                             return httpd_resp_send(req, buf, strlen(buf));
                           },
                            nullptr };
+
+  httpd_uri_t rssi_uri = { "/api/rssi", HTTP_GET, [](httpd_req_t *req) {
+                            int rssi = (WiFi.getMode() == WIFI_STA) ? WiFi.RSSI() : 0;
+                            httpd_resp_set_type(req, "text/plain");
+                            return httpd_resp_send(req, String(rssi).c_str(), HTTPD_RESP_USE_STRLEN);
+                          },
+                           nullptr };
+
   httpd_uri_t solenoids_get_uri = { "/api/solenoids", HTTP_GET, api_solenoids_handler, nullptr };
   httpd_uri_t solenoids_post_uri = { "/api/solenoids", HTTP_POST, api_solenoids_handler, nullptr };
   httpd_uri_t solenoid_test_uri = { "/api/solenoid/test", HTTP_POST, api_solenoid_test_handler, nullptr };
@@ -1215,6 +1324,7 @@ void WebServerManager::beginSTAFull() {
   httpd_uri_t files_delete_uri = { "/api/files", HTTP_DELETE, api_files_handler, nullptr };
   httpd_uri_t wifi_get_uri = { "/api/wifi", HTTP_GET, api_wifi_handler, nullptr };
   httpd_uri_t wifi_post_uri = { "/api/wifi", HTTP_POST, api_wifi_handler, nullptr };
+  httpd_uri_t reboot_post_uri = { "/api/reboot", HTTP_POST, reboot_handler, nullptr };
 
   httpd_uri_t player_get_uri = { "/api/player", HTTP_GET, [](httpd_req_t *req) {
                                   String file = String(sdcard.getCurrentFile());
@@ -1248,40 +1358,40 @@ void WebServerManager::beginSTAFull() {
                                  nullptr };
 
   httpd_uri_t ota_uri = { "/update", HTTP_POST, [](httpd_req_t *req) {
-                             size_t content_len = req->content_len;
-                             if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
-                             if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
-                             char *buf = (char *)malloc(1024);
-                             int ret;
-                             while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
-                               if (Update.write((uint8_t *)buf, ret) != ret) {
-                                 free(buf);
-                                 Update.end();
-                                 return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
-                               }
+                           size_t content_len = req->content_len;
+                           if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
+                           if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
+                           char *buf = (char *)malloc(1024);
+                           int ret;
+                           while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
+                             if (Update.write((uint8_t *)buf, ret) != ret) {
+                               free(buf);
+                               Update.end();
+                               return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
                              }
-                             free(buf);
-                             if (Update.end()) {
-                               vTaskDelay(pdMS_TO_TICKS(1000));
+                           }
+                           free(buf);
+                           if (Update.end()) {
+                             vTaskDelay(pdMS_TO_TICKS(1000));
 
-                               struct tm timeinfo;
-                               char timeStr[32];
-                               if (getLocalTime(&timeinfo)) {
-                                 strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
-                               } else {
-                                 strcpy(timeStr, "Unknown");
-                               }
+                             struct tm timeinfo;
+                             char timeStr[32];
+                             if (getLocalTime(&timeinfo)) {
+                               strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
+                             } else {
+                               strcpy(timeStr, "Unknown");
+                             }
 
-                               Preferences prefs;
-                               prefs.begin("ota", false);
-                               prefs.clear();
-                               prefs.putString("last", timeStr);
-                               prefs.end();
-                               ESP.restart();
-                               return httpd_resp_send(req, "OK", 2);
-                             } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
-                           },
-                            nullptr };
+                             Preferences prefs;
+                             prefs.begin("ota", false);
+                             prefs.clear();
+                             prefs.putString("last", timeStr);
+                             prefs.end();
+                             ESP.restart();
+                             return httpd_resp_send(req, "OK", 2);
+                           } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
+                         },
+                          nullptr };
 
   httpd_uri_t ws_uri = {
     .uri = "/ws",
@@ -1296,6 +1406,7 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &upload_uri);
   httpd_register_uri_handler(server, &temp_uri);
+  httpd_register_uri_handler(server, &rssi_uri);
   httpd_register_uri_handler(server, &solenoids_get_uri);
   httpd_register_uri_handler(server, &solenoids_post_uri);
   httpd_register_uri_handler(server, &solenoid_test_uri);
@@ -1307,6 +1418,7 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &files_delete_uri);
   httpd_register_uri_handler(server, &wifi_get_uri);
   httpd_register_uri_handler(server, &wifi_post_uri);
+  httpd_register_uri_handler(server, &reboot_post_uri);
   httpd_register_uri_handler(server, &player_get_uri);
   httpd_register_uri_handler(server, &player_cmd_uri);
   httpd_register_uri_handler(server, &ota_uri);
