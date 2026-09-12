@@ -28,14 +28,27 @@ bool ButtonManager::isInitialized() {
   return initialized;
 }
 
+// Use a non-blocking approach for buzzer
+static uint32_t buzzerStartTime = 0;
+static bool buzzerActive = false;
+
 void triggerBuzzer(uint16_t duration) {
   pcf.digitalWrite(PIN_BUZZER, HIGH);
-  vTaskDelay(duration / portTICK_PERIOD_MS);
-  pcf.digitalWrite(PIN_BUZZER, LOW);
+  buzzerStartTime = millis();
+  buzzerActive = true;
+}
+
+void updateBuzzer() {
+  if (buzzerActive && (millis() - buzzerStartTime >= 50)) {
+    pcf.digitalWrite(PIN_BUZZER, LOW);
+    buzzerActive = false;
+  }
 }
 
 void ButtonManager::update() {
   if (!initialized) return;
+
+  updateBuzzer(); // Call buzzer update
 
   event = BTN_NONE;
   uint32_t now = millis();
@@ -50,7 +63,7 @@ void ButtonManager::update() {
 
         if (state == LOW) {
         pressedState[i] = true;
-        triggerBuzzer(50);
+        triggerBuzzer(50); // Now non-blocking
 
         switch (i) {
           case 0:

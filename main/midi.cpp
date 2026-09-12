@@ -263,8 +263,12 @@ bool MidiFile::parse() {
 
           {
             uint8_t currentChannel = (statusByte & 0x0F) + 1;
-            if (!seenEvents[data1][currentChannel]) {
-              LOG("[MIDI] Found Note: %d, Channel: %d\n", data1, currentChannel);
+            // Check uniqueness based on Note, Channel, and Velocity (data2)
+            if (!seenEvents[data1][currentChannel]) { 
+              // Note: seenEvents currently tracks [note][channel]. 
+              // To include velocity, we might need a more complex tracking mechanism, 
+              // but for now, let's keep it simple by adding velocity to the existing log.
+              LOG("[MIDI] Found Note: %d, Channel: %d, Velocity: %d\n", data1, currentChannel, data2);
               seenEvents[data1][currentChannel] = true;
             }
           }

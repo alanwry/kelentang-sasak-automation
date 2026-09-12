@@ -20,10 +20,10 @@ void WiFiManager::begin() {
 
 void WiFiManager::update() {
   if (WiFi.getMode() == WIFI_STA && WiFi.status() != WL_CONNECTED && !isConnecting) {
-      isConnecting = true;
-      connectionStart = millis();
-      WiFi.disconnect();
-      WiFi.begin(ssid.c_str(), password.c_str());
+    isConnecting = true;
+    connectionStart = millis();
+    WiFi.disconnect();
+    WiFi.begin(ssid.c_str(), password.c_str());
   }
 
   if (isConnecting) {
@@ -44,7 +44,7 @@ void WiFiManager::loadFromPrefs() {
     password = prefs.getString("password", "");
     enableSTA = prefs.getBool("enableSTA", false);
     prefs.end();
-    LOG("[WIFI] Loaded settings: SSID='%s', Password='%s', Enabled=%s\n", 
+    LOG("[WIFI] Loaded settings: SSID='%s', Password='%s', Enabled=%s\n",
         ssid.c_str(), password.c_str(), enableSTA ? "true" : "false");
   } else {
     if (prefs.begin("gamelan_wifi", false)) {
@@ -68,7 +68,7 @@ void WiFiManager::saveSettings(String newSsid, String newPassword, bool newEnabl
     prefs.end();
     LOG("[WIFI] Settings saved: SSID='%s', Enabled=%s\n", ssid.c_str(), enableSTA ? "true" : "false");
   }
-  
+
   triggerBuzzer(400);
   ESP.restart();
 }
@@ -92,7 +92,7 @@ void WiFiManager::startAPMinimal() {
   WiFi.softAPConfig(local_IP, gateway, subnet);
 
   if (WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, 1, 0, 2)) {
-    LOG("[WIFI] AP Started: Kelentang_Robot\n");
+    LOG("[WIFI] AP Started: %s\n", WIFI_SSID);
     webServer.beginAPMinimal();
   } else {
     LOG("[WIFI] AP Start Failed\n");
@@ -101,20 +101,20 @@ void WiFiManager::startAPMinimal() {
 
 void WiFiManager::startSTAOnly() {
   if (ssid.length() == 0) {
-      startAPMinimal();
-      return;
+    startAPMinimal();
+    return;
   }
   stopAll();
-  
+
   WiFi.mode(WIFI_STA);
   WiFi.setHostname("mydashboard");
   WiFi.begin(ssid.c_str(), password.c_str());
-  
+
   xTaskCreatePinnedToCore(
     [](void *parameter) {
       uint32_t startAttempt = millis();
       bool connected = false;
-      
+
       while (millis() - startAttempt < 15000) {
         if (WiFi.status() == WL_CONNECTED) {
           connected = true;
@@ -122,7 +122,7 @@ void WiFiManager::startSTAOnly() {
         }
         vTaskDelay(pdMS_TO_TICKS(500));
       }
-      
+
       if (connected) {
         LOG("[WIFI] STA Connected\n");
         if (MDNS.begin("mydashboard")) {

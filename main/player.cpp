@@ -82,10 +82,7 @@ bool Player::load() {
 }
 
 void Player::play() {
-  if (sdcard.getCount() == 0) {
-    LOG("[PLAYER] Play failed: SD Card empty\n");
-    return;
-  }
+  if (sdcard.getCount() == 0) return;
   if (!loaded && !load()) return;
 
   uint64_t now = esp_timer_get_time();
@@ -94,13 +91,11 @@ void Player::play() {
     startUS = now;
     paused = false;
     playing = true;
-    LOG("[PLAYER] Resumed: %s\n", sdcard.getCurrentFile());
   } else if (!playing) {
     elapsedUS = 0;
     startUS = now;
     playing = true;
     paused = false;
-    LOG("[PLAYER] Playing: %s\n", sdcard.getCurrentFile());
   }
 }
 
@@ -108,13 +103,11 @@ void Player::pause() {
   if (!playing) return;
 
   uint64_t now = esp_timer_get_time();
-
   elapsedUS += (now - startUS);
 
   playing = false;
   paused = true;
   solenoid.allOff();
-  LOG("[PLAYER] Paused: %s\n", sdcard.getCurrentFile());
 }
 
 void Player::nextFile() {
@@ -209,7 +202,7 @@ void Player::update() {
     return;
   }
 
-  uint64_t elapsed = elapsedUS + (esp_timer_get_time() - startUS);
+  uint64_t elapsed = getElapsedUS();
   MidiEvent evtData;
 
   while (eventQueue.peek(evtData)) {
@@ -222,12 +215,9 @@ void Player::update() {
 
   if (eventQueue.empty()) {
     if (autoMode) {
-      LOG("[PLAYER] File finished, auto-playing next\n");
-      vTaskDelay(2000 / portTICK_PERIOD_MS);
       nextFile();
       play();
     } else {
-      LOG("[PLAYER] File finished, stopped\n");
       stop();
     }
   }

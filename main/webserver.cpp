@@ -1,27 +1,29 @@
 #include "webserver.h"
 #include "config.h"
 #include "pins.h"
-#include "wifi_manager.h"
 #include "player.h"
 #include "sdcard.h"
 #include "solenoid.h"
+#include "wifi_manager.h"
 #include <ESPmDNS.h>
 #include <FS.h>
-#include <SD.h>
-#include <WiFi.h>
-#include <esp_http_server.h>
-#include <Update.h>
+#include <NetBIOS.h>
 #include <Preferences.h>
+#include <SD.h>
+#include <Update.h>
+#include <WiFi.h>
+#include <algorithm>
+#include <esp_http_server.h>
+#include <stdarg.h>
 #include <time.h>
 #include <vector>
-#include <stdarg.h>
-#include <algorithm>
-#include <NetBIOS.h>
+
 
 #include <driver/temperature_sensor.h>
 #include <freertos/FreeRTOS.h>
-#include <freertos/semphr.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
+
 
 static std::vector<int> ws_clients;
 static SemaphoreHandle_t ws_mutex = NULL;
@@ -32,7 +34,8 @@ static void ws_sender_task(void *pvParameters) {
   char msg[256];
   while (true) {
     if (xQueueReceive(log_queue, msg, portMAX_DELAY)) {
-      if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+      if (ws_mutex != NULL)
+        xSemaphoreTake(ws_mutex, portMAX_DELAY);
       if (!ws_clients.empty()) {
         for (auto it = ws_clients.begin(); it != ws_clients.end();) {
           httpd_ws_frame_t ws_pkt;
@@ -48,7 +51,8 @@ static void ws_sender_task(void *pvParameters) {
           }
         }
       }
-      if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
+      if (ws_mutex != NULL)
+        xSemaphoreGive(ws_mutex);
     }
   }
 }
@@ -59,12 +63,15 @@ static bool tempInit = false;
 float getChipTemperature() {
   if (!tempInit) {
     temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
-    if (temperature_sensor_install(&cfg, &tempHandle) != ESP_OK) return NAN;
-    if (temperature_sensor_enable(tempHandle) != ESP_OK) return NAN;
+    if (temperature_sensor_install(&cfg, &tempHandle) != ESP_OK)
+      return NAN;
+    if (temperature_sensor_enable(tempHandle) != ESP_OK)
+      return NAN;
     tempInit = true;
   }
   float temp;
-  if (temperature_sensor_get_celsius(tempHandle, &temp) == ESP_OK) return temp;
+  if (temperature_sensor_get_celsius(tempHandle, &temp) == ESP_OK)
+    return temp;
   return NAN;
 }
 
@@ -84,7 +91,8 @@ void LOG(const char *format, ...) {
   Serial.print(buf);
 
   String msg(buf);
-  if (!msg.endsWith("\n")) msg += "\n";
+  if (!msg.endsWith("\n"))
+    msg += "\n";
   sendLogToClients(msg.c_str());
 }
 
@@ -95,7 +103,7 @@ WebServerManager webServer;
 namespace {
 bool active = false;
 bool needsScan = false;
-}
+} // namespace
 
 const char htmlPageAP[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -486,7 +494,9 @@ async function saveAll() {
     let solenoids = [];
     
     rows.forEach(row => {
-        const pin = parseInt(row.querySelector('.col-pin .cell-content').innerText);
+        const pinText = row.querySelector('.col-pin .cell-content');
+        if(!pinText) return;
+        const pin = parseInt(pinText.innerText);
         const note = row.querySelector('.col-note .cell-content').innerText;
         const midiInput = row.querySelector(`input[id^="editMidi-"]`);
         const chInput = row.querySelector(`input[id^="editCh-"]`);
@@ -508,8 +518,7 @@ async function saveAll() {
         headers: {'Content-Type': 'application/json'} 
     });
     
-    if(dataTimer) clearTimeout(dataTimer);
-    loadData();
+    await loadStatic();
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -543,22 +552,24 @@ async function uploadOta() {
 async function sendCommand(cmd) {
     await fetch('/api/player/cmd?action='+cmd, { method: 'POST' });
     if(dataTimer) clearTimeout(dataTimer);
-    loadData();
+    loadDynamic();
 }
 
-async function loadData() {
+// ==== OPTIMASI FETCH DATA ====
+// Memisahkan dynamic data (yg butuh update realtime) dan static (yg butuh fetch sekali/saat diubah)
+
+async function loadDynamic() {
     if (isFetching || isSavingWifi) return; 
     isFetching = true;
-    const t = Date.now();
     
-    // 1. Fetch RSSI
     try {
-        const resRssi = await fetch('/api/rssi?t=' + t);
-        if (resRssi.ok) {
-            const rssiText = await resRssi.text();
-            const rssi = parseInt(rssiText);
-            const rssiVal = document.getElementById('rssiVal');
+        const res = await fetch('/api/status?t=' + Date.now());
+        if (res.ok) {
+            const data = await res.json();
             
+            // Update RSSI
+            const rssiVal = document.getElementById('rssiVal');
+            const rssi = data.rssi;
             const sig1 = document.getElementById('sig1'); const sig2 = document.getElementById('sig2');
             const sig3 = document.getElementById('sig3'); const sig4 = document.getElementById('sig4');
             
@@ -574,33 +585,37 @@ async function loadData() {
             } else { 
                 rssiVal.innerText = '-- dBm';
             }
-        }
-    } catch (e) { }
 
-    // 2. Fetch Temp
-    try {
-        const resTemp = await fetch('/api/temp?t=' + t);
-        if (resTemp.ok) document.getElementById('tempDisplay').innerText = await resTemp.text();
-    } catch (e) { }
-    
-    // 3. Fetch Player
-    try {
-        const resP = await fetch('/api/player?t=' + t); 
-        if (resP.ok) {
-            const player = await resP.json();
+            // Update Temperature
+            document.getElementById('tempDisplay').innerText = data.temp !== "--" ? Number(data.temp).toFixed(1) + '°C' : '--.-°C';
+            
+            // Update Player Status
+            const player = data.player;
             const cleanName = player.file.replace(/\//g, '').replace(/\.(mid|midi)$/i, '');
             document.getElementById('playerStatus').innerText = player.playing ? "Playing : " + cleanName : (player.paused ? "Paused : " + cleanName : "Stopped : " + cleanName);
             document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
             document.getElementById('modeDisplay').innerText = player.auto ? "Continuous" : "PlayOnce";
-            const barWidth = player.duration > 0 ? (player.elapsed / player.duration * 100) : 0;
+            
+            // Fix bug Progress Bar
+            const dur = Number(player.duration) || 0;
+            const el = Number(player.elapsed) || 0;
+            let barWidth = dur > 0 ? (el / dur * 100) : 0;
+            barWidth = Math.min(100, Math.max(0, barWidth));
             document.getElementById('playerBar').style.width = barWidth + '%';
-            const remaining = Math.max(0, player.duration - player.elapsed);
-            document.getElementById('timeElapsed').innerText = formatTime(player.elapsed);
+            
+            const remaining = Math.max(0, dur - el);
+            document.getElementById('timeElapsed').innerText = formatTime(el);
             document.getElementById('timeRemaining').innerText = formatTime(remaining);
         }
-    } catch (e) { }
+    } catch (e) { console.error("Error loadDynamic:", e); }
+    
+    isFetching = false;
+    if (!isSavingWifi) dataTimer = setTimeout(loadDynamic, 1000);
+}
 
-    // 4. Fetch Solenoids
+async function loadStatic() {
+    const t = Date.now();
+    // 1. Fetch Solenoids
     try {
         const resS = await fetch('/api/solenoids?t=' + t);
         if (resS.ok && !isEditMode) {
@@ -620,7 +635,7 @@ async function loadData() {
                     <td class="col-en"><div class="cell-content"><input type="checkbox" id="editEn-${s.pin}" ${s.en ? 'checked' : ''} disabled></div></td>
                     <td class="col-s-action">
                         <div class="cell-content" style="gap:4px;">
-                            <button class="primary action-btn" style="flex:1;" onclick="testSolenoid(${s.pin})">Play</button>
+                            <button class="primary action-btn" style="flex:1;" onclick="testSolenoid(${s.pin})">Test</button>
                             <button class="danger action-btn" style="flex:1;" onclick="removeSolenoid(${s.pin})">Del</button>
                         </div>
                     </td>
@@ -629,7 +644,7 @@ async function loadData() {
         }
     } catch (e) { }
 
-    // 5. Fetch File
+    // 2. Fetch File
     try {
         const resF = await fetch('/api/files?t=' + t); 
         if (resF.ok) {
@@ -659,17 +674,11 @@ async function loadData() {
         }
     } catch (e) { }
 
-    // 6. Fetch Time
+    // 3. Fetch Time
     try {
         const resT = await fetch('/api/time?t=' + t); 
         if (resT.ok) document.getElementById('currentTime').innerText = await resT.text();
     } catch (e) { }
-    
-    isFetching = false;
-    
-    if (!isSavingWifi) {
-        dataTimer = setTimeout(loadData, 1000);
-    }
 }
 
 function formatTime(ms) {
@@ -710,8 +719,7 @@ async function restoreConfig() {
   const text = await input.files[0].text();
   await fetch('/api/restore', { method: 'POST', body: text });
   input.value = ''; 
-  if(dataTimer) clearTimeout(dataTimer);
-  loadData();
+  await loadStatic();
 }
 
 async function saveTime() {
@@ -721,8 +729,7 @@ async function saveTime() {
   if (newTime === currentTimeText) { alert('Duration is the same, not saved'); return; }
   await fetch('/api/time', { method: 'POST', body: newTime });
   timeInput.value = ''; 
-  if(dataTimer) clearTimeout(dataTimer);
-  loadData();
+  await loadStatic();
 }
 
 async function uploadFile() {
@@ -731,7 +738,10 @@ async function uploadFile() {
   const response = await fetch('/upload', { method: 'POST', body: formData });
   const text = await response.text();
   if (text === "SKIP") alert('File already exists on SD Card!');
-  else if (text === "OK") { fileInput.value = ''; document.querySelector('label[for=\'fileInput\']').innerText = 'Select MIDI File'; if(dataTimer) clearTimeout(dataTimer); loadData(); }
+  else if (text === "OK") { 
+      fileInput.value = ''; document.querySelector('label[for=\'fileInput\']').innerText = 'Select MIDI File'; 
+      await loadStatic(); 
+  }
   else alert('Failed to upload file');
 }
 
@@ -766,8 +776,7 @@ async function addSolenoid() {
   document.getElementById('sChannel').value = '';
   
   if (document.activeElement) document.activeElement.blur();
-  if(dataTimer) clearTimeout(dataTimer);
-  loadData();
+  await loadStatic();
 }
 
 async function removeSolenoid(pin) {
@@ -776,8 +785,7 @@ async function removeSolenoid(pin) {
   let solenoids = await resS.json();
   solenoids = solenoids.filter(s => s.pin !== pin);
   await fetch('/api/solenoids', { method: 'POST', body: JSON.stringify(solenoids) });
-  if(dataTimer) clearTimeout(dataTimer);
-  loadData();
+  await loadStatic();
 }
 
 async function saveWifi() {
@@ -808,18 +816,19 @@ async function saveWifi() {
   btn.disabled = false;
   
   isSavingWifi = false;
-  dataTimer = setTimeout(loadData, 2000); 
+  dataTimer = setTimeout(loadDynamic, 2000); 
   loadWifi();
 }
 
 async function deleteFile(name) { 
     await fetch('/api/files?name='+name, { method: 'DELETE' }); 
-    if(dataTimer) clearTimeout(dataTimer);
-    loadData(); 
+    await loadStatic(); 
 }
 
 // Mulai Fetch Pertama Kali
-loadData(); 
+loadStatic().then(() => {
+    loadDynamic();
+}); 
 loadWifi();
 
 let ws = null;
@@ -872,12 +881,14 @@ esp_err_t root_handler(httpd_req_t *req) {
   String pinsJs = "[";
   for (size_t i = 0; i < sizeof(ALLOWED_PINS) / sizeof(ALLOWED_PINS[0]); i++) {
     pinsJs += String(ALLOWED_PINS[i]);
-    if (i < (sizeof(ALLOWED_PINS) / sizeof(ALLOWED_PINS[0])) - 1) pinsJs += ", ";
+    if (i < (sizeof(ALLOWED_PINS) / sizeof(ALLOWED_PINS[0])) - 1)
+      pinsJs += ", ";
   }
   pinsJs += "]";
   output.replace("{{ALLOWED_PINS}}", pinsJs);
 
-  String ipAddr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  String ipAddr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString()
+                                              : WiFi.localIP().toString();
   output.replace("{{IP_ADDRESS}}", ipAddr);
 
   httpd_resp_set_type(req, "text/html");
@@ -899,20 +910,29 @@ esp_err_t upload_handler(httpd_req_t *req) {
         if (namePos >= 0) {
           int start = namePos + 10;
           int end = chunk.indexOf("\"", start);
-          if (end > start) filename = sanitizeFilename(chunk.substring(start, end));
+          if (end > start)
+            filename = sanitizeFilename(chunk.substring(start, end));
         }
         int headerEnd = chunk.indexOf("\r\n\r\n");
         if (headerEnd >= 0) {
           headersParsed = true;
           header_offset = headerEnd + 4;
-          if (filename.length() > 0 && SD.exists(filename.c_str())) { return httpd_resp_send(req, "SKIP", 4); }
-          if (filename.length() > 0 && (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
+          if (filename.length() > 0 && SD.exists(filename.c_str())) {
+            return httpd_resp_send(req, "SKIP", 4);
+          }
+          if (filename.length() > 0 &&
+              (filename.endsWith(".mid") || filename.endsWith(".midi"))) {
             file = sdcard.openFile(filename.c_str(), FILE_WRITE);
-            if (!file) return ESP_FAIL;
-            if (recv_len > header_offset) file.write((uint8_t *)(buf + header_offset), recv_len - header_offset);
-          } else return ESP_FAIL;
+            if (!file)
+              return ESP_FAIL;
+            if (recv_len > header_offset)
+              file.write((uint8_t *)(buf + header_offset),
+                         recv_len - header_offset);
+          } else
+            return ESP_FAIL;
         }
-      } else if (file) file.write((uint8_t *)buf, recv_len);
+      } else if (file)
+        file.write((uint8_t *)buf, recv_len);
     }
   }
   if (file) {
@@ -926,17 +946,24 @@ esp_err_t upload_handler(httpd_req_t *req) {
 esp_err_t api_solenoids_handler(httpd_req_t *req) {
   if (req->method == HTTP_GET) {
     if (digitalRead(PIN_SD_DET) == HIGH) {
-      while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
+      while (solenoid.getCount() > 0)
+        solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
       return httpd_resp_send(req, "[]", 2);
     }
 
-    if (solenoid.getCount() == 0) solenoid.loadConfig();
+    if (solenoid.getCount() == 0)
+      solenoid.loadConfig();
 
     String json = "[";
     Solenoid *items = solenoid.getItems();
     for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" + items[i].getNote() + "\",\"midi\":" + String(items[i].getMidiNote()) + ",\"ch\":" + String(items[i].getMidiChannel()) + ",\"en\":" + String(items[i].isEnabled() ? 1 : 0) + "}";
-      if (i < solenoid.getCount() - 1) json += ",";
+      json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" +
+              items[i].getNote() +
+              "\",\"midi\":" + String(items[i].getMidiNote()) +
+              ",\"ch\":" + String(items[i].getMidiChannel()) +
+              ",\"en\":" + String(items[i].isEnabled() ? 1 : 0) + "}";
+      if (i < solenoid.getCount() - 1)
+        json += ",";
     }
     json += "]";
     httpd_resp_set_type(req, "application/json");
@@ -947,10 +974,12 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
     if (ret > 0) {
       std::vector<std::pair<int, bool>> old_states;
       for (uint8_t i = 0; i < solenoid.getCount(); i++) {
-        old_states.push_back({ solenoid.getItems()[i].getPin(), solenoid.getItems()[i].isEnabled() });
+        old_states.push_back({solenoid.getItems()[i].getPin(),
+                              solenoid.getItems()[i].isEnabled()});
       }
 
-      while (solenoid.getCount() > 0) solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
+      while (solenoid.getCount() > 0)
+        solenoid.removeSolenoid(solenoid.getItems()[0].getPin());
       String data(buf);
       int start = 0;
       while ((start = data.indexOf("{\"pin\":", start)) >= 0) {
@@ -980,7 +1009,8 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
         bool new_enabled = solenoid.getItems()[i].isEnabled();
         for (auto &old : old_states) {
           if (old.first == pin && old.second != new_enabled) {
-            LOG("[SOLENOID]: Solenoid %d changed to %s\n", pin, new_enabled ? "ENABLED" : "DISABLED");
+            LOG("[SOLENOID]: Solenoid %d changed to %s\n", pin,
+                new_enabled ? "ENABLED" : "DISABLED");
           }
         }
       }
@@ -1013,20 +1043,27 @@ esp_err_t api_solenoid_test_handler(httpd_req_t *req) {
 esp_err_t api_backup_handler(httpd_req_t *req) {
   if (req->method == HTTP_GET) {
     File file = SD.open("/solenoids.txt", FILE_READ);
-    if (!file) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Config not found");
+    if (!file)
+      return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                 "Config not found");
     String json = "{\"solenoids\":[";
     while (file.available()) {
       String line = file.readStringUntil('\n');
       line.trim();
-      if (line.length() == 0) continue;
+      if (line.length() == 0)
+        continue;
       int c1 = line.indexOf(','), c2 = line.indexOf(',', c1 + 1);
-      json += "{\"pin\":" + line.substring(0, c1) + ",\"note\":\"" + line.substring(c1 + 1, c2) + "\",\"midi\":" + line.substring(c2 + 1) + "},";
+      json += "{\"pin\":" + line.substring(0, c1) + ",\"note\":\"" +
+              line.substring(c1 + 1, c2) +
+              ",\"midi\":" + line.substring(c2 + 1) + "},";
     }
     file.close();
-    if (json.endsWith(",")) json.remove(json.length() - 1);
+    if (json.endsWith(","))
+      json.remove(json.length() - 1);
     json += "],\"duration\":" + String(player.getSolenoidTime()) + "}";
     httpd_resp_set_type(req, "application/json");
-    httpd_resp_set_hdr(req, "Content-Disposition", "attachment; filename=\"backup.json\"");
+    httpd_resp_set_hdr(req, "Content-Disposition",
+                       "attachment; filename=\"backup.json\"");
     return httpd_resp_send(req, json.c_str(), json.length());
   }
   return HTTPD_404_NOT_FOUND;
@@ -1041,15 +1078,19 @@ esp_err_t api_restore_handler(httpd_req_t *req) {
       String data(buf);
       int dStart = data.indexOf("\"duration\":") + 11;
       int dEnd = data.indexOf(",", dStart);
-      if (dEnd == -1) dEnd = data.indexOf("}", dStart);
+      if (dEnd == -1)
+        dEnd = data.indexOf("}", dStart);
       player.setSolenoidTime(data.substring(dStart, dEnd).toInt());
       File file = SD.open("/solenoids.txt", FILE_WRITE);
       int start = data.indexOf("{\"pin\":");
       while (start >= 0) {
         int end = data.indexOf("}", start);
         String obj = data.substring(start, end + 1);
-        int p1 = obj.indexOf(":") + 1, p2 = obj.indexOf(",", p1), p3 = obj.indexOf(":", p2) + 2, p4 = obj.indexOf("\"", p3), p5 = obj.indexOf(":", p4) + 1, p6 = obj.indexOf("}", p5);
-        file.println(obj.substring(p1, p2) + "," + obj.substring(p3, p4) + "," + obj.substring(p5, p6));
+        int p1 = obj.indexOf(":") + 1, p2 = obj.indexOf(",", p1),
+            p3 = obj.indexOf(":", p2) + 2, p4 = obj.indexOf("\"", p3),
+            p5 = obj.indexOf(":", p4) + 1, p6 = obj.indexOf("}", p5);
+        file.println(obj.substring(p1, p2) + "," + obj.substring(p3, p4) + "," +
+                     obj.substring(p5, p6));
         start = data.indexOf("{\"pin\":", end);
       }
       file.close();
@@ -1087,16 +1128,21 @@ esp_err_t api_files_handler(httpd_req_t *req) {
       bool first = true;
       while (file) {
         String name = file.name();
-        if (!file.isDirectory() && (name.endsWith(".mid") || name.endsWith(".midi"))) {
-          if (!first) json += ",";
-          json += "{\"name\":\"" + name + "\",\"size\":" + String(file.size()) + "}";
+        if (!file.isDirectory() &&
+            (name.endsWith(".mid") || name.endsWith(".midi"))) {
+          if (!first)
+            json += ",";
+          json += "{\"name\":\"" + name + "\",\"size\":" + String(file.size()) +
+                  "}";
           first = false;
         }
         file = root.openNextFile();
       }
-      json += "], \"storage\":{\"total\":" + String(SD.totalBytes()) + ", \"free\":" + String(SD.totalBytes() - SD.usedBytes()) + "}}";
+      json += "], \"storage\":{\"total\":" + String(SD.totalBytes()) +
+              ", \"free\":" + String(SD.totalBytes() - SD.usedBytes()) + "}}";
       root.close();
-    } else json += "], \"storage\":null}";
+    } else
+      json += "], \"storage\":null}";
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, json.c_str(), json.length());
   } else if (req->method == HTTP_DELETE) {
@@ -1114,7 +1160,8 @@ esp_err_t api_files_handler(httpd_req_t *req) {
         }
       }
     }
-    return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Delete Failed");
+    return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                               "Delete Failed");
   }
   return ESP_FAIL;
 }
@@ -1124,7 +1171,8 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
     String ssid, pass;
     bool enable;
     wifiManager.getSettings(ssid, pass, enable);
-    String json = "{\"ssid\":\"" + ssid + "\",\"pass\":\"" + pass + "\",\"enable\":" + (enable ? "true" : "false") + "}";
+    String json = "{\"ssid\":\"" + ssid + "\",\"pass\":\"" + pass +
+                  "\",\"enable\":" + (enable ? "true" : "false") + "}";
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, json.c_str(), json.length());
   } else if (req->method == HTTP_POST) {
@@ -1139,13 +1187,15 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
       if (sIdx != -1) {
         int start = sIdx + 8;
         int end = data.indexOf("\"", start);
-        if (end != -1) ssid = data.substring(start, end);
+        if (end != -1)
+          ssid = data.substring(start, end);
       }
       int pIdx = data.indexOf("\"pass\":\"");
       if (pIdx != -1) {
         int start = pIdx + 8;
         int end = data.indexOf("\"", start);
-        if (end != -1) pass = data.substring(start, end);
+        if (end != -1)
+          pass = data.substring(start, end);
       }
       int eIdx = data.indexOf("\"enable\":");
       if (eIdx != -1) {
@@ -1153,8 +1203,10 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
         if (colonIdx != -1) {
           String val = data.substring(colonIdx + 1);
           val.trim();
-          if (val.startsWith("true")) enable = true;
-          else if (val.startsWith("false")) enable = false;
+          if (val.startsWith("true"))
+            enable = true;
+          else if (val.startsWith("false"))
+            enable = false;
         }
       }
       int rIdx = data.indexOf("\"restart\":");
@@ -1164,7 +1216,8 @@ esp_err_t api_wifi_handler(httpd_req_t *req) {
         if (colonIdx != -1) {
           String val = data.substring(colonIdx + 1);
           val.trim();
-          if (val.startsWith("true")) restart = true;
+          if (val.startsWith("true"))
+            restart = true;
         }
       }
       wifiManager.saveSettings(ssid, pass, enable, restart);
@@ -1179,13 +1232,18 @@ String sanitizeFilename(String filename) {
   String clean = "/";
   filename.toLowerCase();
   int lastSlash = filename.lastIndexOf('/');
-  if (lastSlash >= 0) filename = filename.substring(lastSlash + 1);
+  if (lastSlash >= 0)
+    filename = filename.substring(lastSlash + 1);
   int lastBackslash = filename.lastIndexOf('\\');
-  if (lastBackslash >= 0) filename = filename.substring(lastBackslash + 1);
+  if (lastBackslash >= 0)
+    filename = filename.substring(lastBackslash + 1);
   for (size_t i = 0; i < filename.length(); i++) {
     char c = filename[i];
-    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-') clean += c;
-    else clean += '_';
+    if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' ||
+        c == '_' || c == '-')
+      clean += c;
+    else
+      clean += '_';
   }
   return clean;
 }
@@ -1193,26 +1251,31 @@ String sanitizeFilename(String filename) {
 esp_err_t ws_handler(httpd_req_t *req) {
   int fd = httpd_req_to_sockfd(req);
 
-  if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+  if (ws_mutex != NULL)
+    xSemaphoreTake(ws_mutex, portMAX_DELAY);
   if (std::find(ws_clients.begin(), ws_clients.end(), fd) == ws_clients.end()) {
     ws_clients.push_back(fd);
     Serial.printf("[WS] Client connected: %d\n", fd);
   }
-  if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
+  if (ws_mutex != NULL)
+    xSemaphoreGive(ws_mutex);
 
   httpd_ws_frame_t ws_pkt;
   memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
   esp_err_t ret = httpd_ws_recv_frame(req, &ws_pkt, 0);
-  if (ret != ESP_OK) return ret;
+  if (ret != ESP_OK)
+    return ret;
 
   if (ws_pkt.type == HTTPD_WS_TYPE_CLOSE) {
-    if (ws_mutex != NULL) xSemaphoreTake(ws_mutex, portMAX_DELAY);
+    if (ws_mutex != NULL)
+      xSemaphoreTake(ws_mutex, portMAX_DELAY);
     auto it = std::find(ws_clients.begin(), ws_clients.end(), fd);
     if (it != ws_clients.end()) {
       ws_clients.erase(it);
       Serial.printf("[WS] Client disconnected: %d\n", fd);
     }
-    if (ws_mutex != NULL) xSemaphoreGive(ws_mutex);
+    if (ws_mutex != NULL)
+      xSemaphoreGive(ws_mutex);
     return ESP_OK;
   }
 
@@ -1238,8 +1301,10 @@ auto reboot_handler = [](httpd_req_t *req) {
 };
 
 void WebServerManager::beginAPMinimal() {
-  if (active) return;
-  if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
+  if (active)
+    return;
+  if (ws_mutex == NULL)
+    ws_mutex = xSemaphoreCreateMutex();
   if (log_queue == NULL) {
     log_queue = xQueueCreate(20, 256);
     xTaskCreate(ws_sender_task, "ws_sender", 4096, NULL, 1, NULL);
@@ -1248,12 +1313,15 @@ void WebServerManager::beginAPMinimal() {
   httpd_config_t config = HTTPD_DEFAULT_CONFIG();
   config.server_port = 80;
   config.stack_size = 16384;
-  if (httpd_start(&server, &config) != ESP_OK) return;
+  if (httpd_start(&server, &config) != ESP_OK)
+    return;
 
-  httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
-  httpd_uri_t wifi_get_uri = { "/api/wifi", HTTP_GET, api_wifi_handler, nullptr };
-  httpd_uri_t wifi_post_uri = { "/api/wifi", HTTP_POST, api_wifi_handler, nullptr };
-  httpd_uri_t reboot_post_uri = { "/api/reboot", HTTP_POST, reboot_handler, nullptr };
+  httpd_uri_t root_uri = {"/", HTTP_GET, root_handler, nullptr};
+  httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
+  httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler,
+                               nullptr};
+  httpd_uri_t reboot_post_uri = {"/api/reboot", HTTP_POST, reboot_handler,
+                                 nullptr};
 
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &wifi_get_uri);
@@ -1264,9 +1332,11 @@ void WebServerManager::beginAPMinimal() {
 }
 
 void WebServerManager::beginSTAFull() {
-  if (active) return;
+  if (active)
+    return;
 
-  if (ws_mutex == NULL) ws_mutex = xSemaphoreCreateMutex();
+  if (ws_mutex == NULL)
+    ws_mutex = xSemaphoreCreateMutex();
   if (log_queue == NULL) {
     log_queue = xQueueCreate(20, 256);
     xTaskCreate(ws_sender_task, "ws_sender", 4096, NULL, 1, NULL);
@@ -1281,7 +1351,8 @@ void WebServerManager::beginSTAFull() {
   }
   NBNS.begin("mydashboard");
 
-  temperature_sensor_config_t ts_cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
+  temperature_sensor_config_t ts_cfg =
+      TEMPERATURE_SENSOR_CONFIG_DEFAULT(10, 50);
   temperature_sensor_install(&ts_cfg, &tempHandle);
   temperature_sensor_enable(tempHandle);
 
@@ -1290,123 +1361,148 @@ void WebServerManager::beginSTAFull() {
   config.max_uri_handlers = 20;
   config.max_open_sockets = 7;
   config.stack_size = 16384;
-  if (httpd_start(&server, &config) != ESP_OK) return;
+  if (httpd_start(&server, &config) != ESP_OK)
+    return;
 
-  httpd_uri_t root_uri = { "/", HTTP_GET, root_handler, nullptr };
-  httpd_uri_t upload_uri = { "/upload", HTTP_POST, upload_handler, nullptr };
-  httpd_uri_t temp_uri = { "/api/temp", HTTP_GET, [](httpd_req_t *req) {
-                            float temp = 0;
-                            if (tempHandle != NULL) {
-                              temperature_sensor_get_celsius(tempHandle, &temp);
-                            }
-                            char buf[16];
-                            snprintf(buf, sizeof(buf), "%.2f°C", temp);
-                            httpd_resp_set_type(req, "text/plain");
-                            return httpd_resp_send(req, buf, strlen(buf));
-                          },
-                           nullptr };
+  // ==== API GABUNGAN STATUS ====
+  httpd_uri_t status_uri = {
+      "/api/status", HTTP_GET,
+      [](httpd_req_t *req) {
+        int rssi = (WiFi.getMode() == WIFI_STA) ? WiFi.RSSI() : 0;
+        float temp = 0.0;
+        if (tempHandle != NULL)
+          temperature_sensor_get_celsius(tempHandle, &temp);
 
-  httpd_uri_t rssi_uri = { "/api/rssi", HTTP_GET, [](httpd_req_t *req) {
-                            int rssi = (WiFi.getMode() == WIFI_STA) ? WiFi.RSSI() : 0;
-                            httpd_resp_set_type(req, "text/plain");
-                            return httpd_resp_send(req, String(rssi).c_str(), HTTPD_RESP_USE_STRLEN);
-                          },
-                           nullptr };
+        String file = String(sdcard.getCurrentFile());
+        if (file.length() == 0)
+          file = "No file";
 
-  httpd_uri_t solenoids_get_uri = { "/api/solenoids", HTTP_GET, api_solenoids_handler, nullptr };
-  httpd_uri_t solenoids_post_uri = { "/api/solenoids", HTTP_POST, api_solenoids_handler, nullptr };
-  httpd_uri_t solenoid_test_uri = { "/api/solenoid/test", HTTP_POST, api_solenoid_test_handler, nullptr };
-  httpd_uri_t backup_uri = { "/api/backup", HTTP_GET, api_backup_handler, nullptr };
-  httpd_uri_t restore_uri = { "/api/restore", HTTP_POST, api_restore_handler, nullptr };
-  httpd_uri_t time_get_uri = { "/api/time", HTTP_GET, api_time_handler, nullptr };
-  httpd_uri_t time_post_uri = { "/api/time", HTTP_POST, api_time_handler, nullptr };
-  httpd_uri_t files_get_uri = { "/api/files", HTTP_GET, api_files_handler, nullptr };
-  httpd_uri_t files_delete_uri = { "/api/files", HTTP_DELETE, api_files_handler, nullptr };
-  httpd_uri_t wifi_get_uri = { "/api/wifi", HTTP_GET, api_wifi_handler, nullptr };
-  httpd_uri_t wifi_post_uri = { "/api/wifi", HTTP_POST, api_wifi_handler, nullptr };
-  httpd_uri_t reboot_post_uri = { "/api/reboot", HTTP_POST, reboot_handler, nullptr };
+        char json[512];
+        snprintf(
+            json, sizeof(json),
+            "{\"rssi\":%d,\"temp\":%.2f,\"player\":{\"playing\":%s,\"paused\":%"
+            "s,\"auto\":%s,\"file\":\"%s\",\"duration\":%lu,\"elapsed\":%lu}}",
+            rssi, temp, player.isPlaying() ? "true" : "false",
+            player.isPaused() ? "true" : "false",
+            player.isAutoMode() ? "true" : "false", file.c_str(),
+            (unsigned long)(player.getDurationUS() / 1000),
+            (unsigned long)(player.getElapsedUS() / 1000));
 
-  httpd_uri_t player_get_uri = { "/api/player", HTTP_GET, [](httpd_req_t *req) {
-                                  String file = String(sdcard.getCurrentFile());
-                                  if (file.length() == 0) file = "No file";
+        httpd_resp_set_type(req, "application/json");
+        return httpd_resp_send(req, json, HTTPD_RESP_USE_STRLEN);
+      },
+      nullptr};
 
-                                  String json = "{\"playing\":" + String(player.isPlaying() ? "true" : "false") + ",\"paused\":" + String(player.isPaused() ? "true" : "false") + ",\"auto\":" + String(player.isAutoMode() ? "true" : "false") + ",\"file\":\"" + file + "\"" + ",\"duration\":" + String(player.getDurationUS() / 1000) + ",\"elapsed\":" + String(player.getElapsedUS() / 1000) + "}";
-                                  httpd_resp_set_type(req, "application/json");
-                                  return httpd_resp_send(req, json.c_str(), json.length());
-                                },
-                                 nullptr };
+  httpd_uri_t root_uri = {"/", HTTP_GET, root_handler, nullptr};
+  httpd_uri_t upload_uri = {"/upload", HTTP_POST, upload_handler, nullptr};
+  httpd_uri_t solenoids_get_uri = {"/api/solenoids", HTTP_GET,
+                                   api_solenoids_handler, nullptr};
+  httpd_uri_t solenoids_post_uri = {"/api/solenoids", HTTP_POST,
+                                    api_solenoids_handler, nullptr};
+  httpd_uri_t solenoid_test_uri = {"/api/solenoid/test", HTTP_POST,
+                                   api_solenoid_test_handler, nullptr};
+  httpd_uri_t backup_uri = {"/api/backup", HTTP_GET, api_backup_handler,
+                            nullptr};
+  httpd_uri_t restore_uri = {"/api/restore", HTTP_POST, api_restore_handler,
+                             nullptr};
+  httpd_uri_t time_get_uri = {"/api/time", HTTP_GET, api_time_handler, nullptr};
+  httpd_uri_t time_post_uri = {"/api/time", HTTP_POST, api_time_handler,
+                               nullptr};
+  httpd_uri_t files_get_uri = {"/api/files", HTTP_GET, api_files_handler,
+                               nullptr};
+  httpd_uri_t files_delete_uri = {"/api/files", HTTP_DELETE, api_files_handler,
+                                  nullptr};
+  httpd_uri_t wifi_get_uri = {"/api/wifi", HTTP_GET, api_wifi_handler, nullptr};
+  httpd_uri_t wifi_post_uri = {"/api/wifi", HTTP_POST, api_wifi_handler,
+                               nullptr};
+  httpd_uri_t reboot_post_uri = {"/api/reboot", HTTP_POST, reboot_handler,
+                                 nullptr};
 
-  httpd_uri_t player_cmd_uri = { "/api/player/cmd", HTTP_POST, [](httpd_req_t *req) {
-                                  char buf[64];
-                                  size_t len = httpd_req_get_url_query_len(req);
-                                  if (len < sizeof(buf)) {
-                                    httpd_req_get_url_query_str(req, buf, len + 1);
-                                    char action[16];
-                                    if (httpd_query_key_value(buf, "action", action, sizeof(action)) == ESP_OK) {
-                                      String cmd(action);
-                                      if (cmd == "start") {
-                                        if (player.isPlaying()) player.pause();
-                                        else player.play();
-                                      } else if (cmd == "next") player.nextFile();
-                                      else if (cmd == "prev") player.prevFile();
-                                      else if (cmd == "mode") player.toggleMode();
-                                      return httpd_resp_send(req, "OK", 2);
-                                    }
-                                  }
-                                  return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid Command");
-                                },
-                                 nullptr };
+  httpd_uri_t player_cmd_uri = {
+      "/api/player/cmd", HTTP_POST,
+      [](httpd_req_t *req) {
+        char buf[64];
+        size_t len = httpd_req_get_url_query_len(req);
+        if (len < sizeof(buf)) {
+          httpd_req_get_url_query_str(req, buf, len + 1);
+          char action[16];
+          if (httpd_query_key_value(buf, "action", action, sizeof(action)) ==
+              ESP_OK) {
+            String cmd(action);
+            if (cmd == "start") {
+              if (player.isPlaying())
+                player.pause();
+              else
+                player.play();
+            } else if (cmd == "next")
+              player.nextFile();
+            else if (cmd == "prev")
+              player.prevFile();
+            else if (cmd == "mode")
+              player.toggleMode();
+            return httpd_resp_send(req, "OK", 2);
+          }
+        }
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                   "Invalid Command");
+      },
+      nullptr};
 
-  httpd_uri_t ota_uri = { "/update", HTTP_POST, [](httpd_req_t *req) {
-                           size_t content_len = req->content_len;
-                           if (content_len == 0) return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
-                           if (!Update.begin(content_len)) return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Begin Failed");
-                           char *buf = (char *)malloc(1024);
-                           int ret;
-                           while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
-                             if (Update.write((uint8_t *)buf, ret) != ret) {
-                               free(buf);
-                               Update.end();
-                               return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA Write Failed");
-                             }
-                           }
-                           free(buf);
-                           if (Update.end()) {
-                             vTaskDelay(pdMS_TO_TICKS(1000));
+  httpd_uri_t ota_uri = {
+      "/update", HTTP_POST,
+      [](httpd_req_t *req) {
+        size_t content_len = req->content_len;
+        if (content_len == 0)
+          return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "No content");
+        if (!Update.begin(content_len))
+          return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                     "OTA Begin Failed");
+        char *buf = (char *)malloc(1024);
+        int ret;
+        while ((ret = httpd_req_recv(req, buf, 1024)) > 0) {
+          if (Update.write((uint8_t *)buf, ret) != ret) {
+            free(buf);
+            Update.end();
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                       "OTA Write Failed");
+          }
+        }
+        free(buf);
+        if (Update.end()) {
+          vTaskDelay(pdMS_TO_TICKS(1000));
 
-                             struct tm timeinfo;
-                             char timeStr[32];
-                             if (getLocalTime(&timeinfo)) {
-                               strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
-                             } else {
-                               strcpy(timeStr, "Unknown");
-                             }
+          struct tm timeinfo;
+          char timeStr[32];
+          if (getLocalTime(&timeinfo)) {
+            strftime(timeStr, sizeof(timeStr), "%d-%m-%Y %H:%M:%S", &timeinfo);
+          } else {
+            strcpy(timeStr, "Unknown");
+          }
 
-                             Preferences prefs;
-                             prefs.begin("ota", false);
-                             prefs.clear();
-                             prefs.putString("last", timeStr);
-                             prefs.end();
-                             ESP.restart();
-                             return httpd_resp_send(req, "OK", 2);
-                           } else return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA End Failed");
-                         },
-                          nullptr };
+          Preferences prefs;
+          prefs.begin("ota", false);
+          prefs.clear();
+          prefs.putString("last", timeStr);
+          prefs.end();
+          ESP.restart();
+          return httpd_resp_send(req, "OK", 2);
+        } else
+          return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR,
+                                     "OTA End Failed");
+      },
+      nullptr};
 
-  httpd_uri_t ws_uri = {
-    .uri = "/ws",
-    .method = HTTP_GET,
-    .handler = ws_handler,
-    .user_ctx = NULL,
-    .is_websocket = true,
-    .handle_ws_control_frames = false,
-    .supported_subprotocol = NULL
-  };
+  httpd_uri_t ws_uri = {.uri = "/ws",
+                        .method = HTTP_GET,
+                        .handler = ws_handler,
+                        .user_ctx = NULL,
+                        .is_websocket = true,
+                        .handle_ws_control_frames = false,
+                        .supported_subprotocol = NULL};
 
   httpd_register_uri_handler(server, &root_uri);
   httpd_register_uri_handler(server, &upload_uri);
-  httpd_register_uri_handler(server, &temp_uri);
-  httpd_register_uri_handler(server, &rssi_uri);
+  httpd_register_uri_handler(server, &status_uri);
   httpd_register_uri_handler(server, &solenoids_get_uri);
   httpd_register_uri_handler(server, &solenoids_post_uri);
   httpd_register_uri_handler(server, &solenoid_test_uri);
@@ -1419,7 +1515,6 @@ void WebServerManager::beginSTAFull() {
   httpd_register_uri_handler(server, &wifi_get_uri);
   httpd_register_uri_handler(server, &wifi_post_uri);
   httpd_register_uri_handler(server, &reboot_post_uri);
-  httpd_register_uri_handler(server, &player_get_uri);
   httpd_register_uri_handler(server, &player_cmd_uri);
   httpd_register_uri_handler(server, &ota_uri);
   httpd_register_uri_handler(server, &ws_uri);
@@ -1428,7 +1523,8 @@ void WebServerManager::beginSTAFull() {
 }
 
 void WebServerManager::update() {
-  if (!active) return;
+  if (!active)
+    return;
   if (needsScan) {
     sdcard.scan();
     needsScan = false;
@@ -1436,7 +1532,8 @@ void WebServerManager::update() {
 }
 
 void WebServerManager::stop() {
-  if (!active) return;
+  if (!active)
+    return;
   if (server) {
     httpd_stop(server);
     server = nullptr;
@@ -1445,6 +1542,4 @@ void WebServerManager::stop() {
   active = false;
 }
 
-bool WebServerManager::isActive() const {
-  return active;
-}
+bool WebServerManager::isActive() const { return active; }
