@@ -9,7 +9,7 @@
 #include "midi.h"
 #include "player.h"
 #include "sdcard.h"
-#include "solenoid.h"
+#include "motor.h"
 #include "webserver.h"
 #include "wifi_manager.h"
 #include <WiFi.h>
@@ -101,7 +101,7 @@ void setup() {
     LOG("[SYSTEM] SD Card module failed to init\n");
   }
 
-  solenoid.begin();
+  motor.begin();
   sdcard.scan();
   player.begin();
   LOG("[SYSTEM] Play Mode: %s\n", player.isAutoMode() ? "Continuous" : "PlayOnce");
@@ -129,13 +129,12 @@ void systemTask(void *pvParameters) {
 
     webServer.update();
     wifiManager.update();
-    solenoid.update();
+    motor.update();
     led.update();
 
     vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }
-
 void loop() {
   vTaskDelete(NULL);
 }

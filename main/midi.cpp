@@ -274,15 +274,16 @@ bool MidiFile::parse() {
           }
 
           if (data2 > 0) {
-            Solenoid *items = solenoid.getItems();
+            Motor *items = motor.getItems();
             uint8_t channel = (statusByte & 0x0F) + 1;
 
-            for (uint8_t i = 0; i < solenoid.getCount(); i++) {
+            for (uint8_t i = 0; i < motor.getCount(); i++) {
               if (items[i].getMidiNote() == data1 && (items[i].getMidiChannel() == 0 || items[i].getMidiChannel() == channel)) {
                 MidiEvent evt;
                 evt.timeUS = (absoluteTicks * tempoUsPerQuarter) / division;
                 evt.type = EVENT_NOTE_ON;
                 evt.note = data1;
+                evt.velocity = data2; // Simpan velocity
                 evt.solenoidId = i;
                 eventQueue.push(evt);
                 eventCount++;

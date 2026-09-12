@@ -11,6 +11,7 @@ struct MidiEvent {
   uint64_t timeUS;
   uint8_t type;
   uint8_t note;
+  uint8_t velocity; // Tambah velocity
   uint8_t solenoidId;
 };
 

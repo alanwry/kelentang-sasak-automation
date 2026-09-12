@@ -4,7 +4,7 @@
 #include "event_queue.h"
 #include "midi.h"
 #include "sdcard.h"
-#include "solenoid.h"
+#include "motor.h"
 #include "webserver.h"
 #include "esp_timer.h"
 #include <Preferences.h>
@@ -107,7 +107,7 @@ void Player::pause() {
 
   playing = false;
   paused = true;
-  solenoid.allOff();
+  motor.allStop();
 }
 
 void Player::nextFile() {
@@ -140,7 +140,7 @@ void Player::stop() {
   paused = false;
   loaded = false;
   elapsedUS = 0;
-  solenoid.allOff();
+  motor.allStop();
   eventQueue.clear();
   LOG("[PLAYER] Stopped\n");
 }
@@ -209,7 +209,7 @@ void Player::update() {
     if (evtData.timeUS > elapsed) break;
     eventQueue.pop(evtData);
     if (evtData.type == EVENT_NOTE_ON) {
-      solenoid.hit(evtData.solenoidId, player.getSolenoidTime());
+      motor.setSpeed(evtData.solenoidId, evtData.velocity);
     }
   }
 
