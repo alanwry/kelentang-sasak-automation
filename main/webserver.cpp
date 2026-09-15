@@ -18,12 +18,10 @@
 #include <time.h>
 #include <vector>
 
-
 #include <driver/temperature_sensor.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
-
 
 static std::vector<int> ws_clients;
 static SemaphoreHandle_t ws_mutex = NULL;
@@ -111,7 +109,7 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
-  <title>Setup AP - ESP32-S3 WROOM-1U</title>
+  <title>ESP32-S3 WROOM-1U</title>
   <style>
     :root { 
       --bg-color: #0b1120; 
@@ -150,7 +148,7 @@ const char htmlPageAP[] PROGMEM = R"rawliteral(
 <div class="card">
   <h2>WiFi Configuration</h2>
   <div class="input-group">
-    <input type="text" id="wifiSsid" placeholder="WiFi Name (SSID)" />
+    <input type="text" id="wifiSsid" placeholder="SSID" />
     <input type="text" id="wifiPass" placeholder="Password" />
     <div class="row">
       <label style="font-size: 0.95rem; color: var(--text-main); font-weight: 500;">Enable WiFi Station</label>
@@ -288,7 +286,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
     .cell-content input[type="checkbox"] { margin: 0; width: 16px; height: 16px; cursor: pointer; accent-color: var(--accent); }
     .cell-content .action-btn { height: 28px; padding: 0 8px; font-size: 0.75rem; margin: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; font-weight: 600; line-height: 1; }
     
-    .truncate-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; line-height: 42px; }
+    .truncate-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; line-height: 42px; text-align: center; }
 
     .col-name { width: 45%; text-align: left !important; padding-left: 10px !important; }
     .col-f-size { width: 25%; }
@@ -315,9 +313,8 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   <h1>KELENTANG ROBOT</h1>
   <div class="header-info">
     <span>IP : <strong style="color: var(--accent);">{{IP_ADDRESS}}</strong></span>
-    <!-- Sinyal Wrapper selalu tampil, default abu-abu -->
     <span id="rssiWrapper" style="display:inline-flex; align-items:center; gap:6px;">Signal : <span id="rssiBarContainer" style="display:inline-flex; align-items:flex-end; gap:2px; height:14px; width:22px;"><span id="sig1" style="width:3px; height:25%; background:#555; border-radius:1px;"></span><span id="sig2" style="width:3px; height:50%; background:#555; border-radius:1px;"></span><span id="sig3" style="width:3px; height:75%; background:#555; border-radius:1px;"></span><span id="sig4" style="width:3px; height:100%; background:#555; border-radius:1px;"></span></span> <strong id="rssiVal" style="color: var(--accent);">-- dBm</strong></span>
-    <span>ESP : <strong id="tempDisplay" style="color: var(--accent);">--.-°C</strong></span>
+    <span>Temp : <strong id="tempDisplay" style="color: var(--accent);">--.-°C</strong></span>
   </div>
 </header>
 
@@ -325,7 +322,7 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 
   <div class="card">
     <h2>Player Control</h2>
-    <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Memeriksa status...</div>
+    <div id="playerStatus" style="font-size: 0.9rem; font-weight: 600; color: var(--text-main); margin-bottom: 5px;">Checking Playback Status...</div>
     <div class="progress-bg"><div id="playerBar" class="progress-bar"></div></div>
     <div class="row" style="justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 12px;">
       <span id="timeElapsed">0:00</span>
@@ -352,11 +349,10 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         <thead><tr><th class="col-name">Name</th><th class="col-f-size">Size</th><th class="col-f-action">Action</th></tr></thead>
       </table>
       <div class="scroll-body">
-        <!-- Placeholder loading -->
-        <table><tbody id="fileBody"><tr><td colspan="3" style="padding:15px; color:var(--text-muted);">Membaca SD Card...</td></tr></tbody></table>
+        <table><tbody id="fileBody"><tr><td colspan="3" style="padding:15px; color:var(--text-muted);">Reading SD Card...</td></tr></tbody></table>
       </div>
     </div>
-    <div id="storageInfo" style="margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); text-align: center; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px;">Menghitung kapasitas...</div>
+    <div id="storageInfo" style="margin-top: 10px; font-size: 0.75rem; color: var(--text-muted); text-align: center; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 4px;">Reading SD Card Capacity...</div>
   </div>
 
   <div class="card">
@@ -390,17 +386,16 @@ const char htmlPage[] PROGMEM = R"rawliteral(
         <thead>
           <tr>
             <th class="col-pin">GPIO</th>
-            <th class="col-note">Note</th>
+            <th class="col-note">NOTE</th>
             <th class="col-midi">MIDI</th>
-            <th class="col-ch">Ch</th>
-            <th class="col-en">En</th>
-            <th class="col-s-action">Action</th>
+            <th class="col-ch">CH</th>
+            <th class="col-en">EN</th>
+            <th class="col-s-action">ACTION</th>
           </tr>
         </thead>
       </table>
       <div class="scroll-body">
-        <!-- Placeholder loading -->
-        <table><tbody id="solenoidBody"><tr><td colspan="6" style="padding:15px; color:var(--text-muted);">Membaca konfigurasi alat...</td></tr></tbody></table>
+        <table><tbody id="solenoidBody"><tr><td colspan="6" style="padding:15px; color:var(--text-muted);">Loading Actuator Configuration...</td></tr></tbody></table>
       </div>
     </div>
   </div>
@@ -550,13 +545,17 @@ async function uploadOta() {
 }
 
 async function sendCommand(cmd) {
+    if (cmd === 'start') {
+        const btn = document.getElementById('btnStart');
+        const status = document.getElementById('playerStatus');
+        const isPlaying = btn.innerText === "Play";
+        
+        btn.innerText = isPlaying ? "Pause" : "Play";
+        const currentStatus = status.innerText;
+        status.innerText = isPlaying ? "Playing" : "Paused";
+    }
     await fetch('/api/player/cmd?action='+cmd, { method: 'POST' });
-    if(dataTimer) clearTimeout(dataTimer);
-    loadDynamic();
 }
-
-// ==== OPTIMASI FETCH DATA ====
-// Memisahkan dynamic data (yg butuh update realtime) dan static (yg butuh fetch sekali/saat diubah)
 
 async function loadDynamic() {
     if (isFetching || isSavingWifi) return; 
@@ -567,7 +566,6 @@ async function loadDynamic() {
         if (res.ok) {
             const data = await res.json();
             
-            // Update RSSI
             const rssiVal = document.getElementById('rssiVal');
             const rssi = data.rssi;
             const sig1 = document.getElementById('sig1'); const sig2 = document.getElementById('sig2');
@@ -586,17 +584,14 @@ async function loadDynamic() {
                 rssiVal.innerText = '-- dBm';
             }
 
-            // Update Temperature
             document.getElementById('tempDisplay').innerText = data.temp !== "--" ? Number(data.temp).toFixed(1) + '°C' : '--.-°C';
             
-            // Update Player Status
             const player = data.player;
             const cleanName = player.file.replace(/\//g, '').replace(/\.(mid|midi)$/i, '');
             document.getElementById('playerStatus').innerText = player.playing ? "Playing : " + cleanName : (player.paused ? "Paused : " + cleanName : "Stopped : " + cleanName);
             document.getElementById('btnStart').innerText = player.playing ? "Pause" : "Play";
             document.getElementById('modeDisplay').innerText = player.auto ? "Continuous" : "PlayOnce";
             
-            // Fix bug Progress Bar
             const dur = Number(player.duration) || 0;
             const el = Number(player.elapsed) || 0;
             let barWidth = dur > 0 ? (el / dur * 100) : 0;
@@ -607,7 +602,7 @@ async function loadDynamic() {
             document.getElementById('timeElapsed').innerText = formatTime(el);
             document.getElementById('timeRemaining').innerText = formatTime(remaining);
         }
-    } catch (e) { console.error("Error loadDynamic:", e); }
+    } catch (e) {}
     
     isFetching = false;
     if (!isSavingWifi) dataTimer = setTimeout(loadDynamic, 1000);
@@ -623,11 +618,11 @@ async function loadStatic() {
             const sBody = document.getElementById('solenoidBody');
             
             if (solenoids.length === 0) {
-                sBody.innerHTML = `<tr><td colspan="6" style="padding:15px; color:var(--text-muted);">Belum ada aktuator disetel</td></tr>`;
+                sBody.innerHTML = `<tr><td colspan="6" style="padding:15px; color:var(--text-muted);">No Actuator Configured</td></tr>`;
             } else {
-                sBody.innerHTML = '';
+                let sHtml = '';
                 solenoids.forEach(s => { 
-                    sBody.innerHTML += `<tr>
+                    sHtml += `<tr>
                     <td class="col-pin"><div class="cell-content">${s.pin}</div></td>
                     <td class="col-note" title="${s.note}"><div class="cell-content truncate-text">${s.note}</div></td>
                     <td class="col-midi"><div class="cell-content"><input type="text" id="editMidi-${s.pin}" value="${s.midi}" disabled oninput="this.value = this.value.replace(/[^0-9]/g, '')"></div></td>
@@ -636,10 +631,12 @@ async function loadStatic() {
                     <td class="col-s-action">
                         <div class="cell-content" style="gap:4px;">
                             <button class="primary action-btn" style="flex:1;" onclick="testSolenoid(${s.pin})">Test</button>
-                            <button class="danger action-btn" style="flex:1;" onclick="removeSolenoid(${s.pin})">Del</button>
+                            <button class="danger action-btn" style="flex:1;" onclick="removeSolenoid(${s.pin})">Delete</button>
                         </div>
                     </td>
-                </tr>`; });
+                </tr>`; 
+                });
+                sBody.innerHTML = sHtml;
             }
         }
     } catch (e) { }
@@ -652,16 +649,17 @@ async function loadStatic() {
             const fBody = document.getElementById('fileBody'); 
             
             if (filesRes.files.length === 0) {
-                fBody.innerHTML = `<tr><td colspan="3" style="padding:15px; color:var(--text-muted);">Tidak ada file MIDI di SD Card</td></tr>`;
+                fBody.innerHTML = `<tr><td colspan="3" style="padding:15px; color:var(--text-muted);">SD Card Is Empty</td></tr>`;
             } else {
-                fBody.innerHTML = '';
+                let fHtml = '';
                 filesRes.files.forEach(f => { 
-                  fBody.innerHTML += `<tr>
+                  fHtml += `<tr>
                     <td class="col-name" title="${f.name}"><div class="cell-content truncate-text" style="padding-left: 10px; text-align: left;">${f.name}</div></td>
                     <td class="col-f-size"><div class="cell-content">${formatSize(f.size)}</div></td>
                     <td class="col-f-action"><div class="cell-content"><button class="danger action-btn" style="width: 90%;" onclick="deleteFile('${f.name}')">Delete</button></div></td>
                   </tr>`; 
                 });
+                fBody.innerHTML = fHtml;
             }
             
             const sInfo = document.getElementById('storageInfo');
@@ -669,7 +667,7 @@ async function loadStatic() {
                 const used = filesRes.storage.total - filesRes.storage.free;
                 sInfo.innerText = `Total : ${formatSize(filesRes.storage.total)} | Used : ${formatSize(used)} | Free : ${formatSize(filesRes.storage.free)}`;
             } else {
-                sInfo.innerText = 'SD Card not detected';
+                sInfo.innerText = 'SD Card Not Detected';
             }
         }
     } catch (e) { }
@@ -725,7 +723,7 @@ async function restoreConfig() {
 async function saveTime() {
   const timeInput = document.getElementById('sTime'); const currentTimeText = document.getElementById('currentTime').innerText;
   const newTime = timeInput.value.trim();
-  if (!newTime || isNaN(parseInt(newTime))) { alert('Masukkan durasi angka yang valid!'); return; }
+  if (!newTime || isNaN(parseInt(newTime))) { alert('Please enter a valid duration!'); return; }
   if (newTime === currentTimeText) { alert('Duration is the same, not saved'); return; }
   await fetch('/api/time', { method: 'POST', body: newTime });
   timeInput.value = ''; 
@@ -751,20 +749,20 @@ async function addSolenoid() {
   const midiRaw = document.getElementById('sMidi').value.trim();
   const chRaw = document.getElementById('sChannel').value.trim();
   
-  if (!pinRaw || !midiRaw) { alert('Kolom GPIO Pin dan MIDI Note wajib diisi!'); return; }
+  if (!pinRaw || !midiRaw) { alert('GPIO and MIDI fields are required!'); return; }
   
   const pin = parseInt(pinRaw);
   const midi = parseInt(midiRaw);
   const ch = chRaw === "" ? 0 : parseInt(chRaw);
   
-  if (isNaN(pin) || isNaN(midi) || isNaN(ch)) { alert('GPIO, MIDI, dan Channel harus berupa angka!'); return; }
-  if (ch < 0 || ch > 16) { alert('MIDI Channel harus antara 0 dan 16!'); return; }
-  if (!allowedPins.includes(pin)) { alert('GPIO Pin tidak valid!'); return; }
+  if (isNaN(pin) || isNaN(midi) || isNaN(ch)) { alert('GPIO, MIDI, and CH must be numbers!'); return; }
+  if (ch < 0 || ch > 16) { alert('MIDI Channel must be between 0 and 16!'); return; }
+  if (!allowedPins.includes(pin)) { alert('Invalid GPIO!'); return; }
   
   const resS = await fetch('/api/solenoids');
   let solenoids = await resS.json();
   
-  if (solenoids.some(s => s.pin === pin)) { alert('GPIO Pin sudah digunakan!'); return; }
+  if (solenoids.some(s => s.pin === pin)) { alert('GPIO is already in use!'); return; }
   
   const note = noteRaw || '-';
   solenoids.push({pin: pin, note: note, midi: midi, ch: ch});
@@ -955,6 +953,7 @@ esp_err_t api_solenoids_handler(httpd_req_t *req) {
       solenoid.loadConfig();
 
     String json = "[";
+    json.reserve(512); // Optimasi memori
     Solenoid *items = solenoid.getItems();
     for (uint8_t i = 0; i < solenoid.getCount(); i++) {
       json += "{\"pin\":" + String(items[i].getPin()) + ",\"note\":\"" +
@@ -1055,7 +1054,7 @@ esp_err_t api_backup_handler(httpd_req_t *req) {
       int c1 = line.indexOf(','), c2 = line.indexOf(',', c1 + 1);
       json += "{\"pin\":" + line.substring(0, c1) + ",\"note\":\"" +
               line.substring(c1 + 1, c2) +
-              ",\"midi\":" + line.substring(c2 + 1) + "},";
+              "\",\"midi\":" + line.substring(c2 + 1) + "},";
     }
     file.close();
     if (json.endsWith(","))
@@ -1122,6 +1121,7 @@ esp_err_t api_time_handler(httpd_req_t *req) {
 esp_err_t api_files_handler(httpd_req_t *req) {
   if (req->method == HTTP_GET) {
     String json = "{\"files\":[";
+    json.reserve(512); // Optimasi memori
     if (digitalRead(PIN_SD_DET) == LOW) {
       File root = SD.open("/");
       File file = root.openNextFile();
