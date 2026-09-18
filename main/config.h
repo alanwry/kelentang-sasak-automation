@@ -3,30 +3,30 @@
 
 #include <Arduino.h>
 
+// Versioning
 #define FW_VERSION "3.0.0"
 
+// System Configuration
 #define MAX_SOLENOID 24
-
 #define DEBUG_SOLENOID 0
-
 #define PCF8574_ADDRESS 0x21
 
+// Input Configuration
 #define BUTTON_DEBOUNCE 40
+#define ENABLE_BUZZER_KEYBEEP 1
 
+// Network Configuration
 #define WIFI_SSID "KEBOT PORTAL"
 #define WIFI_PASSWORD "admin123"
-
 #define WEB_ADMIN_USERNAME "admin"
 #define WEB_ADMIN_PASSWORD "kebot123"
 
-#define ENABLE_BUZZER_KEYBEEP 1
-
+// File System Configuration
 #define MAX_FILENAME 128
-
 #define MAX_FILES 100
 
-#define NOTE_MAP_JS                                                            \
-  "{\
+// MIDI Note Mapping (JS Format)
+#define NOTE_MAP_JS "{\
 \"c0\": 12, \"c#0\": 13, \"d0\": 14, \"d#0\": 15, \"e0\": 16, \"f0\": 17, \"f#0\": 18, \"g0\": 19, \"g#0\": 20, \"a0\": 21, \"a#0\": 22, \"b0\": 23,\
 \"c1\": 24, \"c#1\": 25, \"d1\": 26, \"d#1\": 27, \"e1\": 28, \"f1\": 29, \"f#1\": 30, \"g1\": 31, \"g#1\": 32, \"a1\": 33, \"a#1\": 34, \"b1\": 35,\
 \"c2\": 36, \"c#2\": 37, \"d2\": 38, \"d#2\": 39, \"e2\": 40, \"f2\": 41, \"f#2\": 42, \"g2\": 43, \"g#2\": 44, \"a2\": 45, \"a#2\": 46, \"b2\": 47,\

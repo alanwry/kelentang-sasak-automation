@@ -5,9 +5,10 @@
 
 class LedController {
 public:
-  void begin();
-  void update();
+    void begin();
+    void update();
 };
 
 extern LedController led;
+
 #endif

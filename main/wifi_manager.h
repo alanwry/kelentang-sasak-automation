@@ -6,28 +6,27 @@
 
 class WiFiManager {
 public:
-  WiFiManager();
-  void begin();
-  void update(); 
+    WiFiManager();
+    void begin();
+    void update();
 
-  void startAPMinimal(); 
-  void startSTAOnly();  
+    void startAPMinimal();
+    void startSTAOnly();
+    void stopAll();
 
-  void stopAll();
-
-  void saveSettings(String ssid, String password, bool enableSTA, bool forceRestart = false);
-  void getSettings(String &ssid, String &password, bool &enableSTA);
-  bool isSTAEnabled();
+    void saveSettings(String ssid, String password, bool enableSTA);
+    void getSettings(String &ssid, String &password, bool &enableSTA) const;
+    bool isSTAEnabled() const { return enableSTA; }
 
 private:
-  Preferences prefs;
-  String ssid;
-  String password;
-  bool enableSTA;
-  bool isConnecting;
-  unsigned long connectionStart;
+    Preferences prefs;
+    String ssid;
+    String password;
+    bool enableSTA;
+    bool isConnecting;
+    unsigned long connectionStart;
 
-  void loadFromPrefs();
+    void loadFromPrefs();
 };
 
 extern WiFiManager wifiManager;

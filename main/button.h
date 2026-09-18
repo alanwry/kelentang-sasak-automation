@@ -7,33 +7,29 @@
 extern Adafruit_PCF8574 pcf;
 
 enum ButtonID {
-  BTN_NONE = 0,
-  BTN_START,
-  BTN_NEXT,
-  BTN_PREV,
-  BTN_MODE
+    BTN_NONE = 0,
+    BTN_START,
+    BTN_NEXT,
+    BTN_PREV,
+    BTN_MODE
 };
 
 class ButtonManager {
-
 public:
-  void begin();
-  void update();
-  ButtonID getEvent();
-
-  bool isInitialized();
+    void begin();
+    void update();
+    ButtonID getEvent();
+    bool isInitialized() const { return initialized; }
 
 private:
-  ButtonID event = BTN_NONE;
-  bool initialized = false;
+    ButtonID event = BTN_NONE;
+    bool initialized = false;
 
-  bool lastState[4];
-  bool pressedState[4];
-
-  uint32_t lastTime[4];
+    bool lastState[4];
+    bool pressedState[4];
+    uint32_t lastTime[4];
 };
 
 extern ButtonManager button;
-
 
 #endif

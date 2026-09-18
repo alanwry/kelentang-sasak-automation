@@ -1,8 +1,8 @@
 #include "webserver_admin.h"
 #include "config.h"
 #include "pins.h"
-#include <WiFi.h>
 #include <Preferences.h>
+#include <WiFi.h>
 #include <base64.h>
 
 const char htmlPageAdmin[] PROGMEM = R"rawliteral(
@@ -28,18 +28,20 @@ const char htmlPageAdmin[] PROGMEM = R"rawliteral(
     * { box-sizing: border-box; }
     body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: radial-gradient(circle at top, #1e293b, #0f172a); background-attachment: fixed; color: var(--text-main); margin: 0; padding: 20px; line-height: 1.5; min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
     
-    header { width: 100%; max-width: 1280px; margin: 0 auto 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+    /* Layout Mobile: Max Width 400px, tanpa garis bawah */
+    header { width: 100%; max-width: 400px; margin: 0 auto 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; padding-bottom: 15px; text-align: center; }
     header h1 { margin: 0; font-size: 1.6rem; color: var(--accent); letter-spacing: -0.025em; text-shadow: 0 0 10px rgba(0, 240, 255, 0.4); }
-    .header-info { display: flex; gap: 15px; font-size: 0.9rem; color: var(--text-muted); background: var(--card-bg); padding: 5px 15px; border-radius: 20px; border: 1px solid var(--border); backdrop-filter: blur(4px); }
     
-    .dashboard-grid { column-count: 3; column-gap: 20px; width: 100%; max-width: 1280px; margin: 0 auto; }
-    @media (max-width: 1024px) { .dashboard-grid { column-count: 2; } }
-    @media (max-width: 768px) { .dashboard-grid { column-count: 1; } .header-info { flex-direction: column; gap: 5px; align-items: flex-end;} }
+    /* Info disusun Horizontal, dengan flex-wrap agar aman di layar super kecil */
+    .header-info { display: flex; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 12px; font-size: 0.8rem; color: var(--text-muted); background: var(--card-bg); padding: 8px 12px; border-radius: 20px; border: 1px solid var(--border); backdrop-filter: blur(4px); width: 100%; }
     
-    .card { break-inside: avoid; margin-bottom: 20px; background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; width: 100%; transition: transform 0.3s ease, box-shadow 0.3s ease; }
+    /* Kolom ditumpuk ke bawah */
+    .dashboard-grid { display: flex; flex-direction: column; gap: 20px; width: 100%; max-width: 400px; margin: 0 auto; }
+    
+    .card { background: var(--card-bg); padding: 20px; border-radius: 16px; box-shadow: var(--glass-shadow); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); display: flex; flex-direction: column; width: 100%; transition: transform 0.3s ease, box-shadow 0.3s ease; }
     .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0, 240, 255, 0.1); }
     
-    h2 { margin-top: 0; margin-bottom: 14px; color: var(--accent); font-size: 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.2); }
+    h2 { margin-top: 0; margin-bottom: 14px; color: var(--accent); font-size: 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 8px; text-shadow: 0 0 8px rgba(0, 240, 255, 0.2); text-align: center; }
     .row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
     .row-wrap { flex-wrap: wrap; }
     
@@ -109,7 +111,7 @@ const char htmlPageAdmin[] PROGMEM = R"rawliteral(
     .progress-bg { background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 8px; height: 12px; overflow: hidden; margin: 8px 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5); }
     .progress-bar { background: linear-gradient(90deg, #0088ff, var(--accent)); height: 100%; width: 0%; transition: width 0.3s ease; box-shadow: 0 0 10px rgba(0, 240, 255, 0.5); }
     
-    footer { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 1280px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 30px; margin-bottom: 15px; width: 100%; max-width: 400px; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
   </style>
 </head>
 <body>
@@ -676,15 +678,19 @@ initWebSocket();
 static esp_err_t admin_root_handler(httpd_req_t *req) {
   // Pengecekan Basic Authentication
   char auth_hdr[128] = { 0 };
-  esp_err_t res = httpd_req_get_hdr_value_str(req, "Authorization", auth_hdr, sizeof(auth_hdr));
+  esp_err_t res = httpd_req_get_hdr_value_str(req, "Authorization", auth_hdr,
+                                              sizeof(auth_hdr));
 
   // Format Auth -> Username:Password di encode base64
-  String authString = String(WEB_ADMIN_USERNAME) + ":" + String(WEB_ADMIN_PASSWORD);
+  String authString =
+    String(WEB_ADMIN_USERNAME) + ":" + String(WEB_ADMIN_PASSWORD);
   String expectedBase64 = "Basic " + base64::encode(authString);
 
   if (res != ESP_OK || String(auth_hdr) != expectedBase64) {
-    httpd_resp_set_hdr(req, "WWW-Authenticate", "Basic realm=\"Secure Admin Area\"");
-    return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED, "401 Unauthorized - Need Valid Credentials");
+    httpd_resp_set_hdr(req, "WWW-Authenticate",
+                       "Basic realm=\"Secure Admin Area\"");
+    return httpd_resp_send_err(req, HTTPD_401_UNAUTHORIZED,
+                               "401 Unauthorized - Need Valid Credentials");
   }
 
   // Jika otentikasi lolos, render HTML Admin Full
@@ -708,7 +714,8 @@ static esp_err_t admin_root_handler(httpd_req_t *req) {
   pinsJs += "]";
   output.replace("{{ALLOWED_PINS}}", pinsJs);
 
-  String ipAddr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+  String ipAddr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString()
+                                              : WiFi.localIP().toString();
   output.replace("{{IP_ADDRESS}}", ipAddr);
 
   httpd_resp_set_type(req, "text/html");

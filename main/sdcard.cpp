@@ -1,175 +1,120 @@
-#include <Arduino.h>
 #include "sdcard.h"
 #include "pins.h"
 #include "player.h"
 #include "webserver.h"
 
 SDCardManager sdcard;
-static bool sdInserted = true;
 
 bool SDCardManager::begin() {
-  if (!mutex) {
-    mutex = xSemaphoreCreateMutex();
-    if (!mutex)
-      return false;
-  }
+    if (!mutex) mutex = xSemaphoreCreateMutex();
+    if (!mutex) return false;
 
-  pinMode(PIN_SD_DET, INPUT_PULLUP);
-  sdInserted = (digitalRead(PIN_SD_DET) == LOW);
+    pinMode(PIN_SD_DET, INPUT_PULLUP);
+    sdInserted = (digitalRead(PIN_SD_DET) == LOW);
 
-  if (!sdInserted) {
-    detected = false;
-    return false;
-  }
+    if (!sdInserted) {
+        detected = false;
+        return false;
+    }
 
-  SD.end();
+    SD.end();
+    SPI.begin(SD_SCK, SD_MISO, SD_MOSI, PIN_SD_CS);
 
-  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, PIN_SD_CS);
+    bool ok = false;
+    for (int i = 0; i < 3; i++) {
+        if ((ok = SD.begin(PIN_SD_CS, SPI, 4000000))) break;
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
 
-  bool ok = false;
-  for (int attempt = 0; attempt < 3; attempt++) {
-    ok = SD.begin(PIN_SD_CS, SPI, 4000000);
-    if (ok)
-      break;
-    vTaskDelay(pdMS_TO_TICKS(500));
-  }
-
-  if (!ok) {
-    detected = false;
-  } else {
-    detected = true;
-  }
-  return ok;
+    detected = ok;
+    return ok;
 }
 
 void SDCardManager::update() {
-  bool currentDetected = (digitalRead(PIN_SD_DET) == LOW);
-  if (currentDetected != sdInserted) {
-    sdInserted = currentDetected;
-    LOG("[SDCARD] Physical status changed: %s\n", sdInserted ? "INSERTED" : "REMOVED");
-    if (sdInserted) {
-      if (sdcard.begin()) {
-        detected = true;
-        LOG("[SDCARD] Successfully re-initialized\n");
-      } else {
-        detected = false;
-        LOG("[SDCARD] Failed to re-initialize\n");
-      }
-    } else {
-      player.stop();
-      detected = false;
+    bool currentDetected = (digitalRead(PIN_SD_DET) == LOW);
+    if (currentDetected != sdInserted) {
+        sdInserted = currentDetected;
+        LOG("[SDCARD] Status: %s\n", sdInserted ? "INSERTED" : "REMOVED");
+        
+        if (sdInserted) {
+            detected = begin();
+            if (detected) LOG("[SDCARD] Re-initialized\n");
+            else LOG("[SDCARD] Re-init failed\n");
+        } else {
+            player.stop();
+            detected = false;
+        }
     }
-  }
-}
-
-bool SDCardManager::isDetected() {
-  return detected;
 }
 
 void SDCardManager::scan() {
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
+    if (!xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) return;
+    
     totalFiles = 0;
     File root = SD.open("/");
     if (root) {
-      while (true) {
-        File entry = root.openNextFile();
-        if (!entry)
-          break;
-        if (!entry.isDirectory()) {
-          String name = entry.name();
-          name.toLowerCase();
-          if (name.endsWith(".mid") || name.endsWith(".midi")) {
-            String path = "/" + String(entry.name());
-            strncpy(filenames[totalFiles], path.c_str(), MAX_FILENAME - 1);
-            filenames[totalFiles][MAX_FILENAME - 1] = '\0';
-            totalFiles++;
-            if (totalFiles >= MAX_FILES)
-              break;
-          }
+        while (File entry = root.openNextFile()) {
+            if (!entry.isDirectory()) {
+                String name = entry.name();
+                name.toLowerCase();
+                if (name.endsWith(".mid") || name.endsWith(".midi")) {
+                    if (totalFiles < MAX_FILES) {
+                        snprintf(filenames[totalFiles], MAX_FILENAME, "/%s", entry.name());
+                        totalFiles++;
+                    }
+                }
+            }
+            entry.close();
         }
-        entry.close();
-      }
-      root.close();
+        root.close();
     }
     currentIndex = 0;
     xSemaphoreGive(mutex);
-  }
 }
 
 bool SDCardManager::next() {
-  bool result = false;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    if (totalFiles > 0) {
-      currentIndex++;
-      if (currentIndex >= totalFiles)
-        currentIndex = 0;
-      result = true;
-    }
+    if (!xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) return false;
+    if (totalFiles > 0) currentIndex = (currentIndex + 1) % totalFiles;
     xSemaphoreGive(mutex);
-  }
-  return result;
+    return true;
 }
 
 bool SDCardManager::prev() {
-  bool result = false;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    if (totalFiles > 0) {
-      currentIndex--;
-      if (currentIndex < 0)
-        currentIndex = totalFiles - 1;
-      result = true;
-    }
+    if (!xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) return false;
+    if (totalFiles > 0) currentIndex = (currentIndex - 1 + totalFiles) % totalFiles;
     xSemaphoreGive(mutex);
-  }
-  return result;
-}
-
-uint16_t SDCardManager::getCount() {
-  uint16_t count = 0;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    count = totalFiles;
-    xSemaphoreGive(mutex);
-  }
-  return count;
+    return true;
 }
 
 const char *SDCardManager::getCurrentFile() {
-  static char currentFile[MAX_FILENAME];
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    if (totalFiles == 0)
-      currentFile[0] = '\0';
-    else
-      strncpy(currentFile, filenames[currentIndex], MAX_FILENAME);
-    xSemaphoreGive(mutex);
-  }
-  return currentFile;
+    static char currentFile[MAX_FILENAME];
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) {
+        if (totalFiles == 0) currentFile[0] = '\0';
+        else strncpy(currentFile, filenames[currentIndex], MAX_FILENAME);
+        xSemaphoreGive(mutex);
+    }
+    return currentFile;
 }
 
 File SDCardManager::openCurrent() {
-  File file;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    if (totalFiles > 0) {
-      file = SD.open(filenames[currentIndex]);
+    File file;
+    if (xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) {
+        if (totalFiles > 0) file = SD.open(filenames[currentIndex]);
+        xSemaphoreGive(mutex);
     }
-    xSemaphoreGive(mutex);
-  }
-  return file;
+    return file;
 }
 
 File SDCardManager::openFile(const char *path, const char *mode) {
-  File file;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    file = SD.open(path, mode);
+    if (!xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) return File();
+    File file = SD.open(path, mode);
     xSemaphoreGive(mutex);
-  }
-  return file;
+    return file;
 }
 
 bool SDCardManager::deleteFile(const char *path) {
-  bool ok = false;
-  if (xSemaphoreTake(mutex, portMAX_DELAY)) {
-    ok = SD.remove(path);
+    if (!xSemaphoreTake(mutex, pdMS_TO_TICKS(100))) return false;
+    bool ok = SD.remove(path);
     xSemaphoreGive(mutex);
-  }
-  return ok;
+    return ok;
 }

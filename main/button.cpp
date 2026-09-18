@@ -10,93 +10,78 @@ extern void triggerBuzzer(uint16_t duration);
 ButtonManager button;
 Adafruit_PCF8574 pcf;
 
-static const uint8_t buttonPin[4] = { PIN_PREV, PIN_PLAY_PAUSE, PIN_NEXT, PIN_MODE };
+static const uint8_t buttonPin[4] = {PIN_PREV, PIN_PLAY_PAUSE, PIN_NEXT, PIN_MODE};
 
-void ButtonManager::begin() {
-  if (!pcf.begin(PCF8574_ADDRESS, &Wire)) {
-    initialized = false;
-    return;
-  }
-  
-  initialized = true;
-
-  for (int i = 0; i < 4; i++) {
-    pcf.pinMode(buttonPin[i], INPUT);
-    lastState[i] = pcf.digitalRead(buttonPin[i]);
-    pressedState[i] = false;
-    lastTime[i] = 0;
-  }
-}
-
-bool ButtonManager::isInitialized() {
-  return initialized;
-}
-
-// Use a non-blocking approach for buzzer
+// Non-blocking buzzer state
 static uint32_t buzzerStartTime = 0;
-static uint16_t currentBuzzerDuration = 0; // Store the duration
+static uint16_t currentBuzzerDuration = 0;
 static bool buzzerActive = false;
 
 void triggerBuzzer(uint16_t duration) {
-  pcf.digitalWrite(PIN_BUZZER, HIGH);
-  buzzerStartTime = millis();
-  currentBuzzerDuration = duration;
-  buzzerActive = true;
+    pcf.digitalWrite(PIN_BUZZER, HIGH);
+    buzzerStartTime = millis();
+    currentBuzzerDuration = duration;
+    buzzerActive = true;
 }
 
-void updateBuzzer() {
-  if (buzzerActive && (millis() - buzzerStartTime >= currentBuzzerDuration)) {
-    pcf.digitalWrite(PIN_BUZZER, LOW);
-    buzzerActive = false;
-  }
+static void updateBuzzer() {
+    if (buzzerActive && (millis() - buzzerStartTime >= currentBuzzerDuration)) {
+        pcf.digitalWrite(PIN_BUZZER, LOW);
+        buzzerActive = false;
+    }
+}
+
+void ButtonManager::begin() {
+    if (!pcf.begin(PCF8574_ADDRESS, &Wire)) {
+        initialized = false;
+        return;
+    }
+    initialized = true;
+
+    for (int i = 0; i < 4; i++) {
+        pcf.pinMode(buttonPin[i], INPUT);
+        lastState[i] = pcf.digitalRead(buttonPin[i]);
+        pressedState[i] = false;
+        lastTime[i] = 0;
+    }
 }
 
 void ButtonManager::update() {
-  if (!initialized) return;
+    if (!initialized) return;
+    updateBuzzer();
 
-  updateBuzzer(); // Call buzzer update
+    event = BTN_NONE;
+    uint32_t now = millis();
 
-  event = BTN_NONE;
-  uint32_t now = millis();
+    for (int i = 0; i < 4; i++) {
+        bool state = pcf.digitalRead(buttonPin[i]);
 
-  for (int i = 0; i < 4; i++) {
-    bool state = pcf.digitalRead(buttonPin[i]);
+        if (state != lastState[i]) {
+            if ((now - lastTime[i]) > BUTTON_DEBOUNCE) {
+                lastState[i] = state;
+                lastTime[i] = now;
 
-    if (state != lastState[i]) {
-      if ((now - lastTime[i]) > BUTTON_DEBOUNCE) {
-        lastState[i] = state;
-        lastTime[i] = now;
-
-        if (state == LOW) {
-        pressedState[i] = true;
+                if (state == LOW) {
+                    pressedState[i] = true;
 #if ENABLE_BUZZER_KEYBEEP
-        triggerBuzzer(50); // Now non-blocking
+                    triggerBuzzer(50);
 #endif
-
-        switch (i) {
-          case 0:
-            event = BTN_PREV;
-            break;
-          case 1:
-            event = BTN_START;
-            break;
-          case 2:
-            event = BTN_NEXT;
-            break;
-          case 3:
-            event = BTN_MODE;
-            break;
+                    switch (i) {
+                        case 0: event = BTN_PREV; break;
+                        case 1: event = BTN_START; break;
+                        case 2: event = BTN_NEXT; break;
+                        case 3: event = BTN_MODE; break;
+                    }
+                } else {
+                    pressedState[i] = false;
+                }
+            }
         }
-        } else {
-          pressedState[i] = false;
-        }
-      }
     }
-  }
 }
 
 ButtonID ButtonManager::getEvent() {
-  ButtonID e = event;
-  event = BTN_NONE;
-  return e;
+    ButtonID e = event;
+    event = BTN_NONE;
+    return e;
 }

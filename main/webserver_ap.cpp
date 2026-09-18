@@ -161,7 +161,7 @@ static esp_err_t ap_wifi_handler(httpd_req_t *req) {
             restart = true;
         }
       }
-      wifiManager.saveSettings(ssid, pass, enable, restart);
+      wifiManager.saveSettings(ssid, pass, enable);
       httpd_resp_send(req, "OK", 2);
     }
     return ESP_OK;
