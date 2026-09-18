@@ -609,6 +609,9 @@ void WebServerManager::beginSTAFull() {
         httpd_req_get_url_query_str(req, buf, len + 1);
         char action[16];
         if (httpd_query_key_value(buf, "action", action, sizeof(action)) == ESP_OK) {
+#if ENABLE_BUZZER_KEYBEEP
+          triggerBuzzer(50);
+#endif
           String cmd(action);
           if (cmd == "start") {
             if (player.isPlaying()) player.pause();

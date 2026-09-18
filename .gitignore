@@ -11,6 +11,9 @@ build/
 .idea/
 *.sublime-*
 
+# Automation scripts
+flash_firmware.py
+
 # System files
 .DS_Store
 Thumbs.db

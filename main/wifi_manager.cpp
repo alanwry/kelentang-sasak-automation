@@ -69,7 +69,8 @@ void WiFiManager::saveSettings(String newSsid, String newPassword, bool newEnabl
     LOG("[WIFI] Settings saved: SSID='%s', Enabled=%s\n", ssid.c_str(), enableSTA ? "true" : "false");
   }
 
-  triggerBuzzer(400);
+  triggerBuzzer(50);
+  vTaskDelay(pdMS_TO_TICKS(100)); // Delay agar buzzer sempat bunyi
   ESP.restart();
 }
 

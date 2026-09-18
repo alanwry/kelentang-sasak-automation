@@ -3,6 +3,10 @@
 #include "config.h"
 #include <Adafruit_PCF8574.h>
 
+#if ENABLE_BUZZER_KEYBEEP
+extern void triggerBuzzer(uint16_t duration);
+#endif
+
 ButtonManager button;
 Adafruit_PCF8574 pcf;
 
@@ -30,16 +34,18 @@ bool ButtonManager::isInitialized() {
 
 // Use a non-blocking approach for buzzer
 static uint32_t buzzerStartTime = 0;
+static uint16_t currentBuzzerDuration = 0; // Store the duration
 static bool buzzerActive = false;
 
 void triggerBuzzer(uint16_t duration) {
   pcf.digitalWrite(PIN_BUZZER, HIGH);
   buzzerStartTime = millis();
+  currentBuzzerDuration = duration;
   buzzerActive = true;
 }
 
 void updateBuzzer() {
-  if (buzzerActive && (millis() - buzzerStartTime >= 50)) {
+  if (buzzerActive && (millis() - buzzerStartTime >= currentBuzzerDuration)) {
     pcf.digitalWrite(PIN_BUZZER, LOW);
     buzzerActive = false;
   }
@@ -63,7 +69,9 @@ void ButtonManager::update() {
 
         if (state == LOW) {
         pressedState[i] = true;
+#if ENABLE_BUZZER_KEYBEEP
         triggerBuzzer(50); // Now non-blocking
+#endif
 
         switch (i) {
           case 0:
